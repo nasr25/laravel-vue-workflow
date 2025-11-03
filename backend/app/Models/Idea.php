@@ -8,8 +8,11 @@ class Idea extends Model
 {
     protected $fillable = [
         'user_id',
+        'form_type_id',
+        'workflow_template_id',
         'name',
         'description',
+        'form_data',
         'pdf_file_path',
         'status',
         'current_approval_step',
@@ -17,6 +20,7 @@ class Idea extends Model
 
     protected $casts = [
         'current_approval_step' => 'integer',
+        'form_data' => 'array',
     ];
 
     /**
@@ -25,6 +29,22 @@ class Idea extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the form type for this idea
+     */
+    public function formType()
+    {
+        return $this->belongsTo(FormType::class);
+    }
+
+    /**
+     * Get the workflow template used for this idea
+     */
+    public function workflowTemplate()
+    {
+        return $this->belongsTo(WorkflowTemplate::class);
     }
 
     /**

@@ -81,6 +81,14 @@ class User extends Authenticatable
     }
 
     /**
+     * Check if user is employee
+     */
+    public function isEmployee()
+    {
+        return $this->hasRole('employee');
+    }
+
+    /**
      * Get departments where user is a manager
      */
     public function managedDepartments()
@@ -89,10 +97,54 @@ class User extends Authenticatable
     }
 
     /**
+     * Get departments where user is an employee
+     */
+    public function employeeDepartments()
+    {
+        return $this->belongsToMany(Department::class, 'department_employees')
+            ->withPivot('permission')
+            ->withTimestamps();
+    }
+
+    /**
+     * Get department employee records for this user
+     */
+    public function departmentEmployeeRecords()
+    {
+        return $this->hasMany(DepartmentEmployee::class);
+    }
+
+    /**
+     * Get workflow steps where user is assigned as approver
+     */
+    public function workflowStepApprovers()
+    {
+        return $this->hasMany(WorkflowStepApprover::class);
+    }
+
+    /**
+     * Get workflow steps where user can approve
+     */
+    public function assignedWorkflowSteps()
+    {
+        return $this->belongsToMany(WorkflowStep::class, 'workflow_step_approvers')
+            ->withPivot('role')
+            ->withTimestamps();
+    }
+
+    /**
      * Get ideas submitted by user
      */
     public function ideas()
     {
         return $this->hasMany(Idea::class);
+    }
+
+    /**
+     * Get approvals made by this user (as manager or employee)
+     */
+    public function approvalsMade()
+    {
+        return $this->hasMany(IdeaApproval::class, 'approver_id');
     }
 }
