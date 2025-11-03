@@ -4,6 +4,8 @@ use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\AdminController;
 use App\Http\Controllers\API\IdeaController;
 use App\Http\Controllers\API\ApprovalController;
+use App\Http\Controllers\API\EmployeeController;
+use App\Http\Controllers\API\FormTypeController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -32,6 +34,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{id}', [IdeaController::class, 'update']);
         Route::post('/{id}/submit', [IdeaController::class, 'submit']);
         Route::delete('/{id}', [IdeaController::class, 'destroy']);
+    });
+
+    // ========== FORM TYPES ROUTES ==========
+    // Form types for dynamic workflows
+    Route::prefix('form-types')->group(function () {
+        Route::get('/', [FormTypeController::class, 'index']);
+        Route::get('/{id}', [FormTypeController::class, 'show']);
+    });
+
+    // ========== EMPLOYEE ROUTES ==========
+    // Approval management for employees
+    Route::prefix('employee')->group(function () {
+        Route::get('/pending', [EmployeeController::class, 'getPendingIdeas']);
+        Route::post('/{ideaId}/approve', [EmployeeController::class, 'approve']);
+        Route::post('/{ideaId}/reject', [EmployeeController::class, 'reject']);
     });
 
     // ========== MANAGER ROUTES ==========

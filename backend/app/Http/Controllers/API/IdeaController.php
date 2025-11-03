@@ -85,6 +85,7 @@ class IdeaController extends Controller
                 'name' => 'required|string|max:255|min:1',
                 'description' => 'required|string|max:5000|min:1',
                 'pdf_file' => 'nullable|file|mimes:pdf|max:10240|mimetypes:application/pdf', // 10MB max, strict MIME check
+                'form_type_id' => 'nullable|exists:form_types,id', // NEW: support form types
             ]);
 
             if ($validator->fails()) {
@@ -103,6 +104,15 @@ class IdeaController extends Controller
             $name = strip_tags(trim($request->name));
             $description = strip_tags(trim($request->description));
 
+            // NEW: Get workflow template from form type if provided
+            $workflowTemplateId = null;
+            if ($request->form_type_id) {
+                $formType = \App\Models\FormType::find($request->form_type_id);
+                if ($formType && $formType->activeWorkflowTemplate) {
+                    $workflowTemplateId = $formType->activeWorkflowTemplate->id;
+                }
+            }
+
             $idea = Idea::create([
                 'user_id' => $request->user()->id,
                 'name' => $name,
@@ -110,11 +120,13 @@ class IdeaController extends Controller
                 'pdf_file_path' => $pdfPath,
                 'status' => 'draft',
                 'current_approval_step' => 0,
+                'form_type_id' => $request->form_type_id, // NEW
+                'workflow_template_id' => $workflowTemplateId, // NEW
             ]);
 
             return response()->json([
                 'success' => true,
-                'idea' => $idea,
+                'idea' => $idea->load('formType', 'workflowTemplate'),
                 'message' => 'Idea created successfully'
             ], 201);
         } catch (\Exception $e) {
@@ -236,11 +248,16 @@ class IdeaController extends Controller
                 ], 422);
             }
 
-            $this->workflowService->submitIdea($idea);
+            // NEW: Use dynamic workflow if template is assigned, otherwise use old workflow
+            if ($idea->workflow_template_id) {
+                $this->workflowService->submitIdeaWithWorkflow($idea);
+            } else {
+                $this->workflowService->submitIdea($idea);
+            }
 
             return response()->json([
                 'success' => true,
-                'idea' => $idea->load('approvals.department'),
+                'idea' => $idea->load('approvals.department', 'formType', 'workflowTemplate'),
                 'message' => 'Idea submitted successfully'
             ]);
         } catch (\Exception $e) {
