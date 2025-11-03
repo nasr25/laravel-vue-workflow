@@ -18,27 +18,33 @@ class IdeaWorkflowService
         DB::beginTransaction();
 
         try {
-            // Update idea status to pending
-            $idea->update([
-                'status' => 'pending',
-                'current_approval_step' => 1,
-            ]);
-
-            // Create approval records for all 4 departments
+            // Get active departments ordered by approval_order
             $departments = Department::where('is_active', true)
                 ->orderBy('approval_order')
                 ->get();
 
-            if ($departments->count() < 4) {
-                throw new \Exception('System must have 4 active departments configured');
+            if ($departments->isEmpty()) {
+                throw new \Exception('No active departments available. Please contact administrator.');
             }
 
+            // Get the first active department's approval order
+            $firstDepartment = $departments->first();
+
+            // Update idea status to pending
+            $idea->update([
+                'status' => 'pending',
+                'current_approval_step' => $firstDepartment->approval_order,
+            ]);
+
+            // Create approval records only for active departments
             foreach ($departments as $department) {
                 IdeaApproval::create([
                     'idea_id' => $idea->id,
                     'department_id' => $department->id,
                     'step' => $department->approval_order,
-                    'status' => $department->approval_order === 1 ? 'pending' : 'pending',
+                    'status' => 'pending',
+                    // Set arrived_at for the first department
+                    'arrived_at' => $department->id === $firstDepartment->id ? now() : null,
                 ]);
             }
 
@@ -47,6 +53,7 @@ class IdeaWorkflowService
             Log::info('Idea submitted successfully', [
                 'idea_id' => $idea->id,
                 'user_id' => $idea->user_id,
+                'first_department' => $firstDepartment->name,
             ]);
 
             return true;
@@ -88,17 +95,41 @@ class IdeaWorkflowService
                 'reviewed_at' => now(),
             ]);
 
-            // Check if this is the last step
-            if ($currentStep >= 4) {
-                // All approvals complete
+            // Get all active departments to determine workflow
+            $activeDepartments = Department::where('is_active', true)
+                ->orderBy('approval_order')
+                ->get();
+
+            // Find next active department after current step
+            $nextDepartment = $activeDepartments->first(function ($dept) use ($currentStep) {
+                return $dept->approval_order > $currentStep;
+            });
+
+            if ($nextDepartment) {
+                // Move to next active department
                 $idea->update([
-                    'status' => 'approved',
-                    'current_approval_step' => 5, // Completed
+                    'current_approval_step' => $nextDepartment->approval_order,
+                ]);
+
+                // Set arrived_at for the next department's approval
+                IdeaApproval::where('idea_id', $idea->id)
+                    ->where('department_id', $nextDepartment->id)
+                    ->update(['arrived_at' => now()]);
+
+                Log::info('Idea moved to next department', [
+                    'idea_id' => $idea->id,
+                    'next_department' => $nextDepartment->name,
+                    'next_step' => $nextDepartment->approval_order,
                 ]);
             } else {
-                // Move to next step
+                // All active departments have approved - mark as fully approved
                 $idea->update([
-                    'current_approval_step' => $currentStep + 1,
+                    'status' => 'approved',
+                    'current_approval_step' => null, // Completed
+                ]);
+
+                Log::info('Idea fully approved', [
+                    'idea_id' => $idea->id,
                 ]);
             }
 

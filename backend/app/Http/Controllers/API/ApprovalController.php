@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Mail\IdeaStatusChanged;
+use App\Models\DepartmentManager;
 use App\Models\Idea;
 use App\Services\IdeaWorkflowService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 
 class ApprovalController extends Controller
@@ -63,11 +66,27 @@ class ApprovalController extends Controller
             // Sanitize comments
             $comments = $request->comments ? strip_tags(trim($request->comments)) : null;
 
+            // Get current department name before approval
+            $currentApproval = $idea->approvals()
+                ->where('step', $idea->current_approval_step)
+                ->with('department')
+                ->first();
+            $departmentName = $currentApproval->department->name;
+
             $this->workflowService->approveIdea(
                 $idea,
                 $request->user()->id,
                 $comments
             );
+
+            // Send email notification to user
+            try {
+                Mail::to($idea->user->email)->send(
+                    new IdeaStatusChanged($idea, 'approved', $departmentName, $comments)
+                );
+            } catch (\Exception $mailError) {
+                \Log::error('Failed to send approval email: ' . $mailError->getMessage());
+            }
 
             return response()->json([
                 'success' => true,
@@ -108,11 +127,27 @@ class ApprovalController extends Controller
             // Sanitize comments
             $comments = strip_tags(trim($request->comments));
 
+            // Get current department name before rejection
+            $currentApproval = $idea->approvals()
+                ->where('step', $idea->current_approval_step)
+                ->with('department')
+                ->first();
+            $departmentName = $currentApproval->department->name;
+
             $this->workflowService->rejectIdea(
                 $idea,
                 $request->user()->id,
                 $comments
             );
+
+            // Send email notification to user
+            try {
+                Mail::to($idea->user->email)->send(
+                    new IdeaStatusChanged($idea, 'rejected', $departmentName, $comments)
+                );
+            } catch (\Exception $mailError) {
+                \Log::error('Failed to send rejection email: ' . $mailError->getMessage());
+            }
 
             return response()->json([
                 'success' => true,
@@ -153,11 +188,27 @@ class ApprovalController extends Controller
             // Sanitize comments
             $comments = strip_tags(trim($request->comments));
 
+            // Get current department name before returning
+            $currentApproval = $idea->approvals()
+                ->where('step', $idea->current_approval_step)
+                ->with('department')
+                ->first();
+            $departmentName = $currentApproval->department->name;
+
             $this->workflowService->returnIdea(
                 $idea,
                 $request->user()->id,
                 $comments
             );
+
+            // Send email notification to user
+            try {
+                Mail::to($idea->user->email)->send(
+                    new IdeaStatusChanged($idea, 'returned', $departmentName, $comments)
+                );
+            } catch (\Exception $mailError) {
+                \Log::error('Failed to send return email: ' . $mailError->getMessage());
+            }
 
             return response()->json([
                 'success' => true,
@@ -182,9 +233,6 @@ class ApprovalController extends Controller
             throw new \Exception('User must be a manager');
         }
 
-        // Get departments managed by this user
-        $managedDepartmentIds = $user->managedDepartments()->pluck('departments.id')->toArray();
-
         // Get the current approval record
         $currentApproval = $idea->approvals()
             ->where('step', $idea->current_approval_step)
@@ -195,8 +243,14 @@ class ApprovalController extends Controller
             throw new \Exception('No pending approval found for this idea');
         }
 
-        if (!in_array($currentApproval->department_id, $managedDepartmentIds)) {
-            throw new \Exception('You do not have authority to review this idea at current step');
+        // Check if manager has 'approver' permission for this department
+        $hasApproverPermission = DepartmentManager::where('user_id', $user->id)
+            ->where('department_id', $currentApproval->department_id)
+            ->where('permission', 'approver')
+            ->exists();
+
+        if (!$hasApproverPermission) {
+            throw new \Exception('You do not have permission to take action on this idea. You may only have viewer access.');
         }
 
         return true;

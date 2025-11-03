@@ -107,8 +107,12 @@ export default {
     return api.post('/admin/managers', data)
   },
 
-  assignManagerToDepartment(managerId: number, departmentId: number) {
-    return api.post('/admin/managers/assign', { user_id: managerId, department_id: departmentId })
+  assignManagerToDepartment(managerId: number, departmentId: number, permission: 'viewer' | 'approver' = 'approver') {
+    return api.post('/admin/managers/assign', { user_id: managerId, department_id: departmentId, permission })
+  },
+
+  updateManagerPermission(managerId: number, departmentId: number, permission: string) {
+    return api.post('/admin/managers/update-permission', { user_id: managerId, department_id: departmentId, permission })
   },
 
   removeManagerFromDepartment(managerId: number, departmentId: number) {
@@ -121,5 +125,30 @@ export default {
 
   getPendingIdeasCount() {
     return api.get('/admin/pending-ideas-count')
+  },
+
+  createDepartment(data: { name: string; description: string; is_active: boolean; approval_order?: number }) {
+    return api.post('/admin/departments', data)
+  },
+
+  updateDepartment(id: number, data: { name: string; description: string; approval_order: number; is_active: boolean }) {
+    return api.put(`/admin/departments/${id}`, data)
+  },
+
+  deleteDepartment(id: number) {
+    return api.delete(`/admin/departments/${id}`)
+  },
+
+  // User Management
+  getAllUsers() {
+    return api.get('/admin/users')
+  },
+
+  updateUser(id: number, data: { name: string; email: string; password?: string }) {
+    return api.put(`/admin/users/${id}`, data)
+  },
+
+  deleteUser(id: number) {
+    return api.delete(`/admin/users/${id}`)
   },
 }

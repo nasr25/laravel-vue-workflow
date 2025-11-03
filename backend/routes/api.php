@@ -60,8 +60,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [AdminController::class, 'createManager']);
         Route::post('/assign', [AdminController::class, 'assignManager']);
         Route::post('/remove', [AdminController::class, 'removeManager']);
+        Route::post('/update-permission', [AdminController::class, 'updateManagerPermission']);
     });
 
     // Admin statistics
     Route::get('/admin/pending-ideas-count', [AdminController::class, 'getPendingIdeasCount']);
+
+    // User management
+    Route::prefix('admin/users')->group(function () {
+        Route::get('/', [AdminController::class, 'getAllUsers']);
+        Route::put('/{id}', [AdminController::class, 'updateUser']);
+        Route::delete('/{id}', [AdminController::class, 'deleteUser']);
+    });
 });

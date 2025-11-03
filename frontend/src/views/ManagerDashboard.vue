@@ -31,10 +31,19 @@
           <span
             v-for="dept in authStore.user?.managedDepartments"
             :key="dept.id"
-            class="badge bg-primary"
+            :class="['badge', dept.pivot?.permission === 'approver' ? 'bg-success' : 'bg-secondary']"
           >
             {{ dept.name }} (Step {{ dept.approval_order }})
+            <span class="badge bg-light text-dark ms-1" style="font-size: 0.75em;">
+              {{ dept.pivot?.permission === 'approver' ? '✓ Can Approve' : '👁️ View Only' }}
+            </span>
           </span>
+        </div>
+        <div v-if="hasViewerPermissions" class="mt-2">
+          <small class="text-muted">
+            <i class="bi bi-info-circle me-1"></i>
+            You have "View Only" access to some departments. You can only take actions on departments where you have "Can Approve" permission.
+          </small>
         </div>
       </div>
     </div>
@@ -302,7 +311,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import api from '../services/api'
@@ -317,6 +326,11 @@ const allIdeas = ref<Idea[]>([])
 const loading = ref(false)
 const processing = ref(false)
 const actionComments = reactive<Record<number, string>>({})
+
+// Check if user has any viewer-only permissions
+const hasViewerPermissions = computed(() => {
+  return authStore.user?.managedDepartments?.some((dept: any) => dept.pivot?.permission === 'viewer') || false
+})
 
 onMounted(async () => {
   await authStore.fetchUser()

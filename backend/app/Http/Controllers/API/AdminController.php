@@ -42,7 +42,7 @@ class AdminController extends Controller
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'description' => 'nullable|string',
-                'approval_order' => 'required|integer|min:1|max:4|unique:departments',
+                'is_active' => 'nullable|boolean',
             ]);
 
             if ($validator->fails()) {
@@ -52,11 +52,15 @@ class AdminController extends Controller
                 ], 422);
             }
 
+            // Auto-assign approval_order as the next available position
+            $maxOrder = Department::max('approval_order') ?? 0;
+            $newOrder = $maxOrder + 1;
+
             $department = Department::create([
                 'name' => $request->name,
                 'description' => $request->description,
-                'approval_order' => $request->approval_order,
-                'is_active' => true,
+                'approval_order' => $newOrder,
+                'is_active' => $request->is_active ?? true,
             ]);
 
             return response()->json([
@@ -166,6 +170,7 @@ class AdminController extends Controller
             $validator = Validator::make($request->all(), [
                 'department_id' => 'required|exists:departments,id',
                 'user_id' => 'required|exists:users,id',
+                'permission' => 'nullable|in:viewer,approver',
             ]);
 
             if ($validator->fails()) {
@@ -199,6 +204,7 @@ class AdminController extends Controller
             DepartmentManager::create([
                 'department_id' => $request->department_id,
                 'user_id' => $request->user_id,
+                'permission' => $request->permission ?? 'approver', // Default to approver
             ]);
 
             return response()->json([
@@ -370,6 +376,158 @@ class AdminController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to get pending ideas count'
+            ], 500);
+        }
+    }
+
+    /**
+     * Update manager permission for a department
+     */
+    public function updateManagerPermission(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'department_id' => 'required|exists:departments,id',
+                'user_id' => 'required|exists:users,id',
+                'permission' => 'required|in:viewer,approver',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $assignment = DepartmentManager::where('department_id', $request->department_id)
+                ->where('user_id', $request->user_id)
+                ->first();
+
+            if (!$assignment) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Manager assignment not found'
+                ], 404);
+            }
+
+            $assignment->update(['permission' => $request->permission]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Permission updated successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Update permission error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update permission'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get all users (for user management)
+     */
+    public function getAllUsers()
+    {
+        try {
+            $users = User::with(['role', 'managedDepartments'])->get();
+
+            return response()->json([
+                'success' => true,
+                'users' => $users,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Get all users error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch users'
+            ], 500);
+        }
+    }
+
+    /**
+     * Update a user
+     */
+    public function updateUser(Request $request, $id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            $validator = Validator::make($request->all(), [
+                'name' => 'sometimes|string|max:255|min:3',
+                'email' => 'sometimes|string|email|max:255|unique:users,email,' . $id,
+                'password' => 'sometimes|string|min:6',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $updateData = [];
+
+            if ($request->has('name')) {
+                $updateData['name'] = strip_tags(trim($request->name));
+            }
+
+            if ($request->has('email')) {
+                $updateData['email'] = trim($request->email);
+            }
+
+            if ($request->has('password') && $request->password) {
+                $updateData['password'] = bcrypt($request->password);
+            }
+
+            $user->update($updateData);
+
+            return response()->json([
+                'success' => true,
+                'user' => $user->load('role'),
+                'message' => 'User updated successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Update user error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update user'
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete a user
+     */
+    public function deleteUser($id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            // Prevent deleting own account
+            if ($user->id === auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You cannot delete your own account'
+                ], 422);
+            }
+
+            // Remove manager assignments if any
+            DepartmentManager::where('user_id', $user->id)->delete();
+
+            // Delete user
+            $user->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'User deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Delete user error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete user'
             ], 500);
         }
     }

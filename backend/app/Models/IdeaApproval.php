@@ -14,10 +14,14 @@ class IdeaApproval extends Model
         'status',
         'comments',
         'reviewed_at',
+        'arrived_at',
+        'reminder_sent_at',
     ];
 
     protected $casts = [
         'reviewed_at' => 'datetime',
+        'arrived_at' => 'datetime',
+        'reminder_sent_at' => 'datetime',
         'step' => 'integer',
     ];
 
