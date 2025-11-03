@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import LoginView from '../views/LoginView.vue'
 import UserDashboard from '../views/UserDashboard.vue'
+import EmployeeDashboard from '../views/EmployeeDashboard.vue'
 import ManagerDashboard from '../views/ManagerDashboard.vue'
 import AdminDashboard from '../views/AdminDashboard.vue'
 import IdeaDetails from '../views/IdeaDetails.vue'
@@ -32,6 +33,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/employee',
+      name: 'employee',
+      component: EmployeeDashboard,
+      meta: { requiresAuth: true, role: 'employee' },
+    },
+    {
       path: '/manager',
       name: 'manager',
       component: ManagerDashboard,
@@ -60,6 +67,7 @@ router.beforeEach(async (to, from, next) => {
     // Already logged in, redirect to appropriate dashboard
     if (authStore.isAdmin) return next('/admin')
     if (authStore.isManager) return next('/manager')
+    if (authStore.isEmployee) return next('/employee')
     return next('/user')
   }
 
@@ -75,6 +83,9 @@ router.beforeEach(async (to, from, next) => {
       return next('/login')
     }
     if (role === 'manager' && !authStore.isManager) {
+      return next('/login')
+    }
+    if (role === 'employee' && !authStore.isEmployee) {
       return next('/login')
     }
     if (role === 'user' && !authStore.isUser) {

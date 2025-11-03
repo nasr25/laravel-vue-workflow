@@ -12,6 +12,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!token.value)
   const isAdmin = computed(() => user.value?.role?.name === 'admin')
   const isManager = computed(() => user.value?.role?.name === 'manager')
+  const isEmployee = computed(() => user.value?.role?.name === 'employee')
   const isUser = computed(() => user.value?.role?.name === 'user')
 
   async function login(email: string, password: string) {
@@ -71,6 +72,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     isAdmin,
     isManager,
+    isEmployee,
     isUser,
     login,
     logout,

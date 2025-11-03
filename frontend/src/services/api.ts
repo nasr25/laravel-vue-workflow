@@ -101,6 +101,28 @@ export default {
     return api.get(`/approvals/${ideaId}/return-departments`)
   },
 
+  // Form Types
+  getFormTypes() {
+    return api.get('/form-types')
+  },
+
+  getFormType(id: number) {
+    return api.get(`/form-types/${id}`)
+  },
+
+  // Employee Approvals
+  getEmployeePendingIdeas() {
+    return api.get('/employee/pending')
+  },
+
+  approveIdeaAsEmployee(ideaId: number, comments?: string) {
+    return api.post(`/employee/${ideaId}/approve`, { comments })
+  },
+
+  rejectIdeaAsEmployee(ideaId: number, comments: string) {
+    return api.post(`/employee/${ideaId}/reject`, { comments })
+  },
+
   // Admin
   getDepartments() {
     return api.get('/admin/departments')
