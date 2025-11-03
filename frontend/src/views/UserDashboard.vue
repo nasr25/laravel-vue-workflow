@@ -43,7 +43,6 @@
                     type="text"
                     class="form-control"
                     id="ideaName"
-                    required
                     placeholder="Enter a descriptive name for your idea"
                     maxlength="255"
                   />
@@ -59,7 +58,6 @@
                     class="form-control"
                     id="ideaDescription"
                     rows="5"
-                    required
                     placeholder="Describe your idea in detail..."
                     maxlength="5000"
                   ></textarea>
@@ -430,15 +428,11 @@ async function submitIdea() {
   loading.value = true
 
   try {
-    // Client-side validation
-    if (!form.value.name.trim() || !form.value.description.trim()) {
-      alert('Please fill in all required fields')
-      return
-    }
-
+    // Allow saving drafts with minimal content
+    // Backend will validate completeness when submitting for approval
     const formData = new FormData()
-    formData.append('name', form.value.name.trim())
-    formData.append('description', form.value.description.trim())
+    formData.append('name', form.value.name.trim() || 'Untitled')
+    formData.append('description', form.value.description.trim() || '')
     if (form.value.file) {
       formData.append('pdf_file', form.value.file)
     }

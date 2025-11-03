@@ -80,9 +80,10 @@ class IdeaController extends Controller
     public function store(Request $request)
     {
         try {
+            // Relaxed validation for drafts - allow saving work in progress
             $validator = Validator::make($request->all(), [
-                'name' => 'required|string|max:255|min:3',
-                'description' => 'required|string|max:5000|min:10',
+                'name' => 'required|string|max:255|min:1',
+                'description' => 'required|string|max:5000|min:1',
                 'pdf_file' => 'nullable|file|mimes:pdf|max:10240|mimetypes:application/pdf', // 10MB max, strict MIME check
             ]);
 
@@ -149,9 +150,10 @@ class IdeaController extends Controller
                 ], 422);
             }
 
+            // Relaxed validation for draft updates
             $validator = Validator::make($request->all(), [
-                'name' => 'sometimes|string|max:255|min:3',
-                'description' => 'sometimes|string|max:5000|min:10',
+                'name' => 'sometimes|string|max:255|min:1',
+                'description' => 'sometimes|string|max:5000|min:1',
                 'pdf_file' => 'nullable|file|mimes:pdf|max:10240|mimetypes:application/pdf',
             ]);
 
@@ -216,6 +218,21 @@ class IdeaController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Idea already submitted'
+                ], 422);
+            }
+
+            // Validate idea completeness before submission
+            if (strlen($idea->name) < 3) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Idea name must be at least 3 characters long before submission'
+                ], 422);
+            }
+
+            if (strlen($idea->description) < 10) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Idea description must be at least 10 characters long before submission'
                 ], 422);
             }
 
