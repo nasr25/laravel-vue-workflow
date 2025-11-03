@@ -164,13 +164,14 @@ class ApprovalController extends Controller
     }
 
     /**
-     * Return an idea to user for editing
+     * Return an idea to user for editing or to a specific department
      */
     public function returnToUser(Request $request, $ideaId)
     {
         try {
             $validator = Validator::make($request->all(), [
                 'comments' => 'required|string|max:1000|min:3',
+                'return_to_department_id' => 'nullable|exists:departments,id',
             ]);
 
             if ($validator->fails()) {
@@ -195,16 +196,35 @@ class ApprovalController extends Controller
                 ->first();
             $departmentName = $currentApproval->department->name;
 
-            $this->workflowService->returnIdea(
-                $idea,
-                $request->user()->id,
-                $comments
-            );
+            // Check if returning to department or user
+            if ($request->has('return_to_department_id') && $request->return_to_department_id) {
+                // Return to specific department
+                $this->workflowService->returnToDepartment(
+                    $idea,
+                    $request->user()->id,
+                    $request->return_to_department_id,
+                    $comments
+                );
+
+                $targetDepartment = \App\Models\Department::find($request->return_to_department_id);
+                $message = "Idea returned to {$targetDepartment->name} successfully";
+                $emailStatus = 'returned_to_dept';
+            } else {
+                // Return to user
+                $this->workflowService->returnIdea(
+                    $idea,
+                    $request->user()->id,
+                    $comments
+                );
+
+                $message = 'Idea returned to user successfully';
+                $emailStatus = 'returned';
+            }
 
             // Send email notification to user
             try {
                 Mail::to($idea->user->email)->send(
-                    new IdeaStatusChanged($idea, 'returned', $departmentName, $comments)
+                    new IdeaStatusChanged($idea, $emailStatus, $departmentName, $comments)
                 );
             } catch (\Exception $mailError) {
                 \Log::error('Failed to send return email: ' . $mailError->getMessage());
@@ -213,10 +233,40 @@ class ApprovalController extends Controller
             return response()->json([
                 'success' => true,
                 'idea' => $idea->load('approvals.department', 'approvals.manager'),
-                'message' => 'Idea returned to user successfully'
+                'message' => $message
             ]);
         } catch (\Exception $e) {
             \Log::error('Return idea error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get available departments to return to (previous departments)
+     */
+    public function getReturnDepartments(Request $request, $ideaId)
+    {
+        try {
+            $idea = Idea::findOrFail($ideaId);
+
+            // Verify manager has authority for current step
+            $this->verifyManagerAuthority($request->user(), $idea);
+
+            // Get all departments with approval_order less than current step
+            $previousDepartments = \App\Models\Department::where('is_active', true)
+                ->where('approval_order', '<', $idea->current_approval_step)
+                ->orderBy('approval_order', 'desc')
+                ->get(['id', 'name', 'approval_order']);
+
+            return response()->json([
+                'success' => true,
+                'departments' => $previousDepartments,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Get return departments error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()

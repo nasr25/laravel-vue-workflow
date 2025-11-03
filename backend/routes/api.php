@@ -39,6 +39,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('approvals')->group(function () {
         Route::get('/pending', [ApprovalController::class, 'pendingIdeas']);
         Route::get('/all-ideas', [ApprovalController::class, 'allIdeas']);
+        Route::get('/{ideaId}/return-departments', [ApprovalController::class, 'getReturnDepartments']);
         Route::post('/{ideaId}/approve', [ApprovalController::class, 'approve']);
         Route::post('/{ideaId}/reject', [ApprovalController::class, 'reject']);
         Route::post('/{ideaId}/return', [ApprovalController::class, 'returnToUser']);

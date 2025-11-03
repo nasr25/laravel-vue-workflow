@@ -90,8 +90,15 @@ export default {
     return api.post(`/approvals/${ideaId}/reject`, { comments })
   },
 
-  returnIdea(ideaId: number, comments: string) {
-    return api.post(`/approvals/${ideaId}/return`, { comments })
+  returnIdea(ideaId: number, comments: string, returnToDepartmentId?: number) {
+    return api.post(`/approvals/${ideaId}/return`, {
+      comments,
+      return_to_department_id: returnToDepartmentId
+    })
+  },
+
+  getReturnDepartments(ideaId: number) {
+    return api.get(`/approvals/${ideaId}/return-departments`)
   },
 
   // Admin

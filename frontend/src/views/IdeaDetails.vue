@@ -290,18 +290,24 @@ function getApprovalBadgeClass(status: string) {
   const classes: Record<string, string> = {
     pending: 'bg-info',
     approved: 'bg-success',
-    rejected: 'bg-danger'
+    rejected: 'bg-danger',
+    returned: 'bg-warning text-dark',
+    returned_to_dept: 'bg-warning text-dark'
   }
   return classes[status] || 'bg-secondary'
 }
 
 function getTimelineClass(status: string) {
-  return status === 'approved' ? 'timeline-success' : status === 'rejected' ? 'timeline-danger' : 'timeline-pending'
+  if (status === 'approved') return 'timeline-success'
+  if (status === 'rejected') return 'timeline-danger'
+  if (status === 'returned' || status === 'returned_to_dept') return 'timeline-warning'
+  return 'timeline-pending'
 }
 
 function getTimelineIcon(status: string) {
   if (status === 'approved') return 'bi bi-check-circle-fill text-success'
   if (status === 'rejected') return 'bi bi-x-circle-fill text-danger'
+  if (status === 'returned' || status === 'returned_to_dept') return 'bi bi-arrow-return-left text-warning'
   return 'bi bi-clock-fill text-info'
 }
 
@@ -386,6 +392,11 @@ async function handleLogout() {
 .timeline-pending .timeline-marker {
   background: #d1ecf1;
   border-color: #17a2b8;
+}
+
+.timeline-warning .timeline-marker {
+  background: #fff3cd;
+  border-color: #ffc107;
 }
 
 .timeline-content {

@@ -307,6 +307,118 @@
         </div>
       </div>
     </div>
+
+    <!-- Return Modal -->
+    <div v-if="showReturnModal" class="modal-backdrop" @click="cancelReturn">
+      <div class="modal-dialog modal-dialog-centered" @click.stop>
+        <div class="modal-content">
+          <div class="modal-header bg-warning text-dark">
+            <h5 class="modal-title">
+              <i class="bi bi-arrow-return-left me-2"></i>
+              Return Idea
+            </h5>
+            <button type="button" class="btn-close" @click="cancelReturn"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Return Destination *</label>
+              <div class="form-check mb-2">
+                <input
+                  class="form-check-input"
+                  type="radio"
+                  name="returnDestination"
+                  id="returnToUser"
+                  value="user"
+                  v-model="returnDestination"
+                />
+                <label class="form-check-label" for="returnToUser">
+                  <i class="bi bi-person-fill me-1"></i>
+                  Return to End User (for editing)
+                </label>
+              </div>
+              <div class="form-check" v-if="availableDepartments.length > 0">
+                <input
+                  class="form-check-input"
+                  type="radio"
+                  name="returnDestination"
+                  id="returnToDepartment"
+                  value="department"
+                  v-model="returnDestination"
+                />
+                <label class="form-check-label" for="returnToDepartment">
+                  <i class="bi bi-building me-1"></i>
+                  Return to Previous Department
+                </label>
+              </div>
+              <div v-else class="text-muted small mt-2">
+                <i class="bi bi-info-circle me-1"></i>
+                No previous departments available
+              </div>
+            </div>
+
+            <div v-if="returnDestination === 'department' && availableDepartments.length > 0" class="mb-3">
+              <label for="departmentSelect" class="form-label fw-semibold">Select Department *</label>
+              <select
+                id="departmentSelect"
+                class="form-select"
+                v-model="selectedDepartmentId"
+              >
+                <option :value="null">-- Select a department --</option>
+                <option
+                  v-for="dept in availableDepartments"
+                  :key="dept.id"
+                  :value="dept.id"
+                >
+                  {{ dept.name }} (Step {{ dept.approval_order }})
+                </option>
+              </select>
+              <small class="text-muted">
+                The idea will be sent back to this department for re-review
+              </small>
+            </div>
+
+            <div class="mb-3">
+              <label for="returnComments" class="form-label fw-semibold">Comments *</label>
+              <textarea
+                id="returnComments"
+                class="form-control"
+                rows="4"
+                v-model="returnComments"
+                placeholder="Explain what needs to be changed or reviewed..."
+                maxlength="1000"
+              ></textarea>
+              <small class="text-muted">{{ returnComments.length }}/1000 characters</small>
+            </div>
+
+            <div class="alert alert-info mb-0">
+              <i class="bi bi-info-circle-fill me-2"></i>
+              <strong>Note:</strong>
+              <span v-if="returnDestination === 'user'">
+                Returning to the user will reset all approvals. The user will need to resubmit after editing.
+              </span>
+              <span v-else>
+                Returning to a previous department will reset all approvals from that department onwards.
+              </span>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @click="cancelReturn" :disabled="processing">
+              Cancel
+            </button>
+            <button type="button" class="btn btn-warning" @click="confirmReturn" :disabled="processing">
+              <span v-if="processing">
+                <span class="spinner-border spinner-border-sm me-2"></span>
+                Processing...
+              </span>
+              <span v-else>
+                <i class="bi bi-arrow-return-left me-1"></i>
+                Confirm Return
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -326,6 +438,14 @@ const allIdeas = ref<Idea[]>([])
 const loading = ref(false)
 const processing = ref(false)
 const actionComments = reactive<Record<number, string>>({})
+
+// Return modal state
+const showReturnModal = ref(false)
+const returnIdeaId = ref<number | null>(null)
+const returnComments = ref('')
+const returnDestination = ref<'user' | 'department'>('user')
+const selectedDepartmentId = ref<number | null>(null)
+const availableDepartments = ref<any[]>([])
 
 // Check if user has any viewer-only permissions
 const hasViewerPermissions = computed(() => {
@@ -408,18 +528,61 @@ async function returnIdea(ideaId: number) {
     return
   }
 
-  if (!confirm('Return this idea to the user for editing?')) return
+  // Load available departments and open modal
+  returnIdeaId.value = ideaId
+  returnComments.value = actionComments[ideaId]
+  returnDestination.value = 'user'
+  selectedDepartmentId.value = null
+
+  try {
+    const response = await api.getReturnDepartments(ideaId)
+    if (response.data.success) {
+      availableDepartments.value = response.data.departments
+    }
+  } catch (error: any) {
+    console.error('Failed to load departments:', error)
+  }
+
+  showReturnModal.value = true
+}
+
+async function confirmReturn() {
+  if (!returnIdeaId.value) return
+
+  if (!returnComments.value || returnComments.value.trim().length < 3) {
+    alert('Please provide comments (minimum 3 characters)')
+    return
+  }
+
+  if (returnDestination.value === 'department' && !selectedDepartmentId.value) {
+    alert('Please select a department')
+    return
+  }
 
   processing.value = true
   try {
-    await api.returnIdea(ideaId, actionComments[ideaId])
-    delete actionComments[ideaId]
+    const departmentId = returnDestination.value === 'department' ? selectedDepartmentId.value : undefined
+    await api.returnIdea(returnIdeaId.value, returnComments.value, departmentId)
+
+    delete actionComments[returnIdeaId.value]
+    showReturnModal.value = false
+    returnIdeaId.value = null
+    returnComments.value = ''
+
     loadPendingIdeas()
   } catch (error: any) {
     alert('Error: ' + (error.response?.data?.message || 'Failed to return'))
   } finally {
     processing.value = false
   }
+}
+
+function cancelReturn() {
+  showReturnModal.value = false
+  returnIdeaId.value = null
+  returnComments.value = ''
+  returnDestination.value = 'user'
+  selectedDepartmentId.value = null
 }
 
 function formatDate(date: string) {
@@ -536,5 +699,43 @@ async function handleLogout() {
   .action-form {
     padding: 1rem !important;
   }
+}
+
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+  backdrop-filter: blur(2px);
+}
+
+.modal-dialog {
+  max-width: 600px;
+  width: 90%;
+  margin: 0;
+}
+
+.modal-content {
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+}
+
+.modal-footer {
+  border-top: 2px solid rgba(0, 0, 0, 0.05);
+}
+
+.form-check-input:checked {
+  background-color: #ffc107;
+  border-color: #ffc107;
 }
 </style>

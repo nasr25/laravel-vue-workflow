@@ -263,6 +263,78 @@ class IdeaWorkflowService
     }
 
     /**
+     * Return idea to a specific department
+     */
+    public function returnToDepartment(Idea $idea, $managerId, $targetDepartmentId, $comments)
+    {
+        DB::beginTransaction();
+
+        try {
+            $currentStep = $idea->current_approval_step;
+
+            // Get the approval record for current step
+            $currentApproval = IdeaApproval::where('idea_id', $idea->id)
+                ->where('step', $currentStep)
+                ->where('status', 'pending')
+                ->first();
+
+            if (!$currentApproval) {
+                throw new \Exception('No pending approval found for this step');
+            }
+
+            // Get the target department
+            $targetDepartment = Department::findOrFail($targetDepartmentId);
+
+            // Verify target department is before current step (can only return backwards)
+            if ($targetDepartment->approval_order >= $currentStep) {
+                throw new \Exception('Can only return to previous departments');
+            }
+
+            // Reset all approvals from target department onwards (including current step)
+            // This ensures when the target department approves again, all subsequent steps are pending
+            IdeaApproval::where('idea_id', $idea->id)
+                ->where('step', '>=', $targetDepartment->approval_order)
+                ->update([
+                    'status' => 'pending',
+                    'manager_id' => null,
+                    'comments' => null,
+                    'reviewed_at' => null,
+                    'arrived_at' => null,
+                ]);
+
+            // Update idea to move to target department
+            $idea->update([
+                'status' => 'pending',
+                'current_approval_step' => $targetDepartment->approval_order,
+            ]);
+
+            // Set arrived_at for the target department
+            IdeaApproval::where('idea_id', $idea->id)
+                ->where('department_id', $targetDepartmentId)
+                ->update(['arrived_at' => now()]);
+
+            DB::commit();
+
+            Log::info('Idea returned to department', [
+                'idea_id' => $idea->id,
+                'from_step' => $currentStep,
+                'to_department' => $targetDepartment->name,
+                'to_step' => $targetDepartment->approval_order,
+                'manager_id' => $managerId,
+            ]);
+
+            return true;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to return idea to department', [
+                'idea_id' => $idea->id,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
      * Get ideas pending approval for a specific manager
      */
     public function getPendingIdeasForManager($managerId)
