@@ -88,7 +88,7 @@ class AdminController extends Controller
             $validator = Validator::make($request->all(), [
                 'name' => 'sometimes|string|max:255',
                 'description' => 'nullable|string',
-                'approval_order' => 'sometimes|integer|min:1|max:4|unique:departments,approval_order,' . $id,
+                'approval_order' => 'sometimes|integer|min:1|unique:departments,approval_order,' . $id,
                 'is_active' => 'sometimes|boolean',
             ]);
 
@@ -310,7 +310,7 @@ class AdminController extends Controller
             $validator = Validator::make($request->all(), [
                 'departments' => 'required|array',
                 'departments.*.id' => 'required|exists:departments,id',
-                'departments.*.approval_order' => 'required|integer|min:1|max:4',
+                'departments.*.approval_order' => 'required|integer|min:1',
             ]);
 
             if ($validator->fails()) {
@@ -320,21 +320,27 @@ class AdminController extends Controller
                 ], 422);
             }
 
-            // Validate that we have exactly 4 departments and unique approval orders
+            // Validate department count and unique approval orders
             $departments = $request->departments;
+            $totalDepartments = Department::count();
 
-            if (count($departments) !== 4) {
+            if (count($departments) !== $totalDepartments) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Must provide all 4 departments'
+                    'message' => "Must provide all $totalDepartments departments for reordering"
                 ], 422);
             }
 
             $orders = array_column($departments, 'approval_order');
-            if (count(array_unique($orders)) !== 4 || min($orders) !== 1 || max($orders) !== 4) {
+            $expectedCount = count($departments);
+
+            // Check: all orders are unique, start from 1, and are sequential
+            if (count(array_unique($orders)) !== $expectedCount ||
+                min($orders) !== 1 ||
+                max($orders) !== $expectedCount) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Approval orders must be unique and between 1-4'
+                    'message' => "Approval orders must be unique and sequential from 1 to $expectedCount"
                 ], 422);
             }
 

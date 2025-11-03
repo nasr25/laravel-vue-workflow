@@ -123,13 +123,15 @@ class IdeaWorkflowService
                 ]);
             } else {
                 // All active departments have approved - mark as fully approved
+                // Keep current_approval_step at the last department (don't set to null)
                 $idea->update([
                     'status' => 'approved',
-                    'current_approval_step' => null, // Completed
+                    // Keep current_approval_step at the last approved step
                 ]);
 
                 Log::info('Idea fully approved', [
                     'idea_id' => $idea->id,
+                    'final_step' => $currentStep,
                 ]);
             }
 
