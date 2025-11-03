@@ -119,8 +119,8 @@
                       </small>
                     </div>
                     <div class="d-flex flex-column gap-2 align-items-end">
-                      <span class="badge bg-info">
-                        Step {{ idea.current_approval_step }}/4
+                      <span v-if="idea.approvals" class="badge bg-info">
+                        Step {{ idea.current_approval_step }}/{{ idea.approvals.length }}
                       </span>
                       <small class="text-muted">
                         <i class="bi bi-calendar-fill me-1"></i>
@@ -295,7 +295,7 @@
                         {{ idea.status }}
                       </span>
                     </td>
-                    <td>{{ idea.current_approval_step }}/4</td>
+                    <td>{{ idea.current_approval_step }}/{{ idea.approvals?.length || 0 }}</td>
                     <td>
                       <small class="text-muted">{{ formatDate(idea.created_at) }}</small>
                     </td>

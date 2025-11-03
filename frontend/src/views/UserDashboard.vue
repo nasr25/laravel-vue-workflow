@@ -195,8 +195,8 @@
                         </span>
                       </td>
                       <td>
-                        <span v-if="idea.current_approval_step > 0" class="badge bg-info">
-                          {{ idea.current_approval_step }}/4
+                        <span v-if="idea.current_approval_step > 0 && idea.approvals" class="badge bg-info">
+                          {{ idea.current_approval_step }}/{{ idea.approvals.length }}
                         </span>
                         <span v-else class="text-muted">-</span>
                       </td>
@@ -215,13 +215,20 @@
                             </div>
                           </div>
                           <small class="text-muted">
-                            {{ getApprovedCount(idea.approvals) }}/4 approved
+                            {{ getApprovedCount(idea.approvals) }}/{{ idea.approvals.length }} approved
                           </small>
                         </div>
                         <span v-else class="text-muted">Not submitted</span>
                       </td>
                       <td>
                         <div class="btn-group btn-group-sm" role="group">
+                          <button
+                            @click="router.push(`/idea/${idea.id}`)"
+                            class="btn btn-outline-info"
+                            title="View Details"
+                          >
+                            <i class="bi bi-eye-fill"></i>
+                          </button>
                           <button
                             v-if="idea.status === 'draft' || idea.status === 'returned'"
                             @click="startEdit(idea)"
@@ -270,8 +277,8 @@
                         <span :class="['badge', getStatusClass(idea.status)]">
                           {{ idea.status }}
                         </span>
-                        <span v-if="idea.current_approval_step > 0" class="badge bg-info">
-                          Step {{ idea.current_approval_step }}/4
+                        <span v-if="idea.current_approval_step > 0 && idea.approvals" class="badge bg-info">
+                          Step {{ idea.current_approval_step }}/{{ idea.approvals.length }}
                         </span>
                       </div>
                     </div>
@@ -325,6 +332,13 @@
 
                     <!-- Actions -->
                     <div class="d-flex gap-2 flex-wrap">
+                      <button
+                        @click="router.push(`/idea/${idea.id}`)"
+                        class="btn btn-sm btn-info"
+                      >
+                        <i class="bi bi-eye-fill me-1"></i>
+                        View Details
+                      </button>
                       <button
                         v-if="idea.status === 'draft' || idea.status === 'returned'"
                         @click="startEdit(idea)"
@@ -542,7 +556,7 @@ function getApprovedCount(approvals: any[]) {
 
 function getProgressWidth(approvals: any[]) {
   const approvedCount = getApprovedCount(approvals)
-  return Math.round((approvedCount / 4) * 100)
+  return approvals.length > 0 ? Math.round((approvedCount / approvals.length) * 100) : 0
 }
 
 async function handleLogout() {

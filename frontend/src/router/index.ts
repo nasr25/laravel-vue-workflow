@@ -4,6 +4,7 @@ import LoginView from '../views/LoginView.vue'
 import UserDashboard from '../views/UserDashboard.vue'
 import ManagerDashboard from '../views/ManagerDashboard.vue'
 import AdminDashboard from '../views/AdminDashboard.vue'
+import IdeaDetails from '../views/IdeaDetails.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -23,6 +24,12 @@ const router = createRouter({
       name: 'user',
       component: UserDashboard,
       meta: { requiresAuth: true, role: 'user' },
+    },
+    {
+      path: '/idea/:id',
+      name: 'ideaDetails',
+      component: IdeaDetails,
+      meta: { requiresAuth: true },
     },
     {
       path: '/manager',
