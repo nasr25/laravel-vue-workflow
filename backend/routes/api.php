@@ -90,4 +90,37 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{id}', [AdminController::class, 'updateUser']);
         Route::delete('/{id}', [AdminController::class, 'deleteUser']);
     });
+
+    // Employee management
+    Route::prefix('admin/employees')->group(function () {
+        Route::get('/', [AdminController::class, 'getEmployees']);
+        Route::post('/', [AdminController::class, 'createEmployee']);
+        Route::post('/assign', [AdminController::class, 'assignEmployeeToDepartment']);
+        Route::post('/remove', [AdminController::class, 'removeEmployeeFromDepartment']);
+    });
+
+    // Form type management
+    Route::prefix('admin/form-types')->group(function () {
+        Route::get('/', [AdminController::class, 'getFormTypes']);
+        Route::post('/', [AdminController::class, 'createFormType']);
+        Route::put('/{id}', [AdminController::class, 'updateFormType']);
+        Route::delete('/{id}', [AdminController::class, 'deleteFormType']);
+    });
+
+    // Workflow template management
+    Route::prefix('admin/workflows')->group(function () {
+        Route::get('/', [AdminController::class, 'getWorkflowTemplates']);
+        Route::post('/', [AdminController::class, 'createWorkflowTemplate']);
+        Route::put('/{id}', [AdminController::class, 'updateWorkflowTemplate']);
+        Route::delete('/{id}', [AdminController::class, 'deleteWorkflowTemplate']);
+    });
+
+    // Workflow step management
+    Route::prefix('admin/workflow-steps')->group(function () {
+        Route::post('/', [AdminController::class, 'createWorkflowStep']);
+        Route::put('/{id}', [AdminController::class, 'updateWorkflowStep']);
+        Route::delete('/{id}', [AdminController::class, 'deleteWorkflowStep']);
+        Route::post('/add-approver', [AdminController::class, 'addWorkflowStepApprover']);
+        Route::post('/remove-approver', [AdminController::class, 'removeWorkflowStepApprover']);
+    });
 });

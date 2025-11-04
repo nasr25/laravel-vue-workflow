@@ -180,4 +180,126 @@ export default {
   deleteUser(id: number) {
     return api.delete(`/admin/users/${id}`)
   },
+
+  // Employee Management
+  getEmployees() {
+    return api.get('/admin/employees')
+  },
+
+  createEmployee(data: { name: string; email: string; password: string }) {
+    return api.post('/admin/employees', data)
+  },
+
+  assignEmployeeToDepartment(userId: number, departmentId: number, permission: 'viewer' | 'approver') {
+    return api.post('/admin/employees/assign', { user_id: userId, department_id: departmentId, permission })
+  },
+
+  removeEmployeeFromDepartment(userId: number, departmentId: number) {
+    return api.post('/admin/employees/remove', { user_id: userId, department_id: departmentId })
+  },
+
+  // Form Type Management (Admin)
+  getAdminFormTypes() {
+    return api.get('/admin/form-types')
+  },
+
+  createFormType(data: {
+    name: string;
+    description?: string;
+    icon?: string;
+    has_file_upload?: boolean;
+    file_types_allowed?: string[];
+    max_file_size_mb?: number;
+    is_active?: boolean;
+  }) {
+    return api.post('/admin/form-types', data)
+  },
+
+  updateFormType(id: number, data: {
+    name?: string;
+    description?: string;
+    icon?: string;
+    has_file_upload?: boolean;
+    file_types_allowed?: string[];
+    max_file_size_mb?: number;
+    is_active?: boolean;
+  }) {
+    return api.put(`/admin/form-types/${id}`, data)
+  },
+
+  deleteFormType(id: number) {
+    return api.delete(`/admin/form-types/${id}`)
+  },
+
+  // Workflow Template Management
+  getWorkflowTemplates() {
+    return api.get('/admin/workflows')
+  },
+
+  createWorkflowTemplate(data: {
+    form_type_id: number;
+    name: string;
+    description?: string;
+    is_active?: boolean;
+  }) {
+    return api.post('/admin/workflows', data)
+  },
+
+  updateWorkflowTemplate(id: number, data: {
+    name?: string;
+    description?: string;
+    is_active?: boolean;
+  }) {
+    return api.put(`/admin/workflows/${id}`, data)
+  },
+
+  deleteWorkflowTemplate(id: number) {
+    return api.delete(`/admin/workflows/${id}`)
+  },
+
+  // Workflow Step Management
+  createWorkflowStep(data: {
+    workflow_template_id: number;
+    step_name: string;
+    approver_type: 'employee' | 'manager' | 'either';
+    department_id: number;
+    required_approvals_count: number;
+    approval_mode: 'all' | 'any_count';
+    can_skip?: boolean;
+    timeout_hours?: number;
+    approver_ids?: number[];
+  }) {
+    return api.post('/admin/workflow-steps', data)
+  },
+
+  updateWorkflowStep(id: number, data: {
+    step_name?: string;
+    approver_type?: 'employee' | 'manager' | 'either';
+    department_id?: number;
+    required_approvals_count?: number;
+    approval_mode?: 'all' | 'any_count';
+    can_skip?: boolean;
+    timeout_hours?: number;
+  }) {
+    return api.put(`/admin/workflow-steps/${id}`, data)
+  },
+
+  deleteWorkflowStep(id: number) {
+    return api.delete(`/admin/workflow-steps/${id}`)
+  },
+
+  addWorkflowStepApprover(workflowStepId: number, userId: number, role: 'employee' | 'manager') {
+    return api.post('/admin/workflow-steps/add-approver', {
+      workflow_step_id: workflowStepId,
+      user_id: userId,
+      role
+    })
+  },
+
+  removeWorkflowStepApprover(workflowStepId: number, userId: number) {
+    return api.post('/admin/workflow-steps/remove-approver', {
+      workflow_step_id: workflowStepId,
+      user_id: userId
+    })
+  },
 }

@@ -5,8 +5,13 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\DepartmentManager;
+use App\Models\DepartmentEmployee;
 use App\Models\User;
 use App\Models\Role;
+use App\Models\FormType;
+use App\Models\WorkflowTemplate;
+use App\Models\WorkflowStep;
+use App\Models\WorkflowStepApprover;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -534,6 +539,691 @@ class AdminController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to delete user'
+            ], 500);
+        }
+    }
+
+    // ========================================
+    // EMPLOYEE MANAGEMENT
+    // ========================================
+
+    /**
+     * Get all employees
+     */
+    public function getEmployees()
+    {
+        try {
+            $employeeRole = Role::where('name', 'employee')->first();
+            $employees = User::where('role_id', $employeeRole->id)
+                ->with(['employeeDepartments', 'workflowStepApprovers.workflowStep'])
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'employees' => $employees,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Get employees error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch employees'
+            ], 500);
+        }
+    }
+
+    /**
+     * Create a new employee
+     */
+    public function createEmployee(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255',
+                'email' => 'required|email|unique:users,email',
+                'password' => 'required|string|min:5',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $employeeRole = Role::where('name', 'employee')->first();
+            if (!$employeeRole) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Employee role not found'
+                ], 404);
+            }
+
+            $employee = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => bcrypt($request->password),
+                'role_id' => $employeeRole->id,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'employee' => $employee,
+                'message' => 'Employee created successfully'
+            ], 201);
+        } catch (\Exception $e) {
+            \Log::error('Create employee error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create employee'
+            ], 500);
+        }
+    }
+
+    /**
+     * Assign employee to department
+     */
+    public function assignEmployeeToDepartment(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'user_id' => 'required|exists:users,id',
+                'department_id' => 'required|exists:departments,id',
+                'permission' => 'required|in:viewer,approver',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Check if already assigned
+            $existing = DepartmentEmployee::where('user_id', $request->user_id)
+                ->where('department_id', $request->department_id)
+                ->first();
+
+            if ($existing) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Employee already assigned to this department'
+                ], 422);
+            }
+
+            DepartmentEmployee::create([
+                'user_id' => $request->user_id,
+                'department_id' => $request->department_id,
+                'permission' => $request->permission,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Employee assigned to department successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Assign employee error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to assign employee'
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove employee from department
+     */
+    public function removeEmployeeFromDepartment(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'user_id' => 'required|exists:users,id',
+                'department_id' => 'required|exists:departments,id',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            DepartmentEmployee::where('user_id', $request->user_id)
+                ->where('department_id', $request->department_id)
+                ->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Employee removed from department successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Remove employee error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to remove employee'
+            ], 500);
+        }
+    }
+
+    // ========================================
+    // FORM TYPE MANAGEMENT
+    // ========================================
+
+    /**
+     * Get all form types (including inactive)
+     */
+    public function getFormTypes()
+    {
+        try {
+            $formTypes = FormType::with('workflowTemplates')->get();
+
+            return response()->json([
+                'success' => true,
+                'formTypes' => $formTypes,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Get form types error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch form types'
+            ], 500);
+        }
+    }
+
+    /**
+     * Create a new form type
+     */
+    public function createFormType(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255',
+                'description' => 'nullable|string',
+                'icon' => 'nullable|string|max:50',
+                'has_file_upload' => 'nullable|boolean',
+                'file_types_allowed' => 'nullable|array',
+                'max_file_size_mb' => 'nullable|integer|min:1|max:100',
+                'is_active' => 'nullable|boolean',
+                'form_fields' => 'nullable|array',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $formType = FormType::create([
+                'name' => $request->name,
+                'description' => $request->description,
+                'icon' => $request->icon ?? 'file-text',
+                'has_file_upload' => $request->has_file_upload ?? true,
+                'file_types_allowed' => $request->file_types_allowed ?? ['pdf', 'docx'],
+                'max_file_size_mb' => $request->max_file_size_mb ?? 10,
+                'is_active' => $request->is_active ?? true,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'formType' => $formType,
+                'message' => 'Form type created successfully'
+            ], 201);
+        } catch (\Exception $e) {
+            \Log::error('Create form type error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create form type'
+            ], 500);
+        }
+    }
+
+    /**
+     * Update a form type
+     */
+    public function updateFormType(Request $request, $id)
+    {
+        try {
+            $formType = FormType::findOrFail($id);
+
+            $validator = Validator::make($request->all(), [
+                'name' => 'sometimes|string|max:255',
+                'description' => 'nullable|string',
+                'icon' => 'nullable|string|max:50',
+                'has_file_upload' => 'nullable|boolean',
+                'file_types_allowed' => 'nullable|array',
+                'max_file_size_mb' => 'nullable|integer|min:1|max:100',
+                'is_active' => 'nullable|boolean',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $formType->update($request->all());
+
+            return response()->json([
+                'success' => true,
+                'formType' => $formType,
+                'message' => 'Form type updated successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Update form type error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update form type'
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete a form type
+     */
+    public function deleteFormType($id)
+    {
+        try {
+            $formType = FormType::findOrFail($id);
+
+            // Check if form type has workflow templates
+            if ($formType->workflowTemplates()->count() > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot delete form type with existing workflows'
+                ], 422);
+            }
+
+            $formType->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Form type deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Delete form type error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete form type'
+            ], 500);
+        }
+    }
+
+    // ========================================
+    // WORKFLOW TEMPLATE MANAGEMENT
+    // ========================================
+
+    /**
+     * Get all workflow templates
+     */
+    public function getWorkflowTemplates()
+    {
+        try {
+            $templates = WorkflowTemplate::with(['formType', 'steps' => function ($query) {
+                $query->orderBy('step_order')->with(['department', 'approvers.user']);
+            }])->get();
+
+            return response()->json([
+                'success' => true,
+                'templates' => $templates,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Get workflow templates error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch workflow templates'
+            ], 500);
+        }
+    }
+
+    /**
+     * Create a new workflow template
+     */
+    public function createWorkflowTemplate(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'form_type_id' => 'required|exists:form_types,id',
+                'name' => 'required|string|max:255',
+                'description' => 'nullable|string',
+                'is_active' => 'nullable|boolean',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // If set as active, deactivate other templates for this form type
+            if ($request->is_active) {
+                WorkflowTemplate::where('form_type_id', $request->form_type_id)
+                    ->update(['is_active' => false]);
+            }
+
+            $template = WorkflowTemplate::create([
+                'form_type_id' => $request->form_type_id,
+                'name' => $request->name,
+                'description' => $request->description,
+                'is_active' => $request->is_active ?? true,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'template' => $template->load('formType'),
+                'message' => 'Workflow template created successfully'
+            ], 201);
+        } catch (\Exception $e) {
+            \Log::error('Create workflow template error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create workflow template'
+            ], 500);
+        }
+    }
+
+    /**
+     * Update a workflow template
+     */
+    public function updateWorkflowTemplate(Request $request, $id)
+    {
+        try {
+            $template = WorkflowTemplate::findOrFail($id);
+
+            $validator = Validator::make($request->all(), [
+                'name' => 'sometimes|string|max:255',
+                'description' => 'nullable|string',
+                'is_active' => 'nullable|boolean',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // If set as active, deactivate other templates for this form type
+            if ($request->is_active) {
+                WorkflowTemplate::where('form_type_id', $template->form_type_id)
+                    ->where('id', '!=', $id)
+                    ->update(['is_active' => false]);
+            }
+
+            $template->update($request->all());
+
+            return response()->json([
+                'success' => true,
+                'template' => $template->load('formType'),
+                'message' => 'Workflow template updated successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Update workflow template error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update workflow template'
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete a workflow template
+     */
+    public function deleteWorkflowTemplate($id)
+    {
+        try {
+            $template = WorkflowTemplate::findOrFail($id);
+
+            // Delete all workflow steps and their approvers
+            foreach ($template->steps as $step) {
+                $step->approvers()->delete();
+                $step->delete();
+            }
+
+            $template->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Workflow template deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Delete workflow template error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete workflow template'
+            ], 500);
+        }
+    }
+
+    // ========================================
+    // WORKFLOW STEP MANAGEMENT
+    // ========================================
+
+    /**
+     * Create a workflow step
+     */
+    public function createWorkflowStep(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'workflow_template_id' => 'required|exists:workflow_templates,id',
+                'step_name' => 'required|string|max:255',
+                'approver_type' => 'required|in:employee,manager,either',
+                'department_id' => 'required|exists:departments,id',
+                'required_approvals_count' => 'required|integer|min:1',
+                'approval_mode' => 'required|in:all,any_count',
+                'can_skip' => 'nullable|boolean',
+                'timeout_hours' => 'nullable|integer|min:1',
+                'approver_ids' => 'nullable|array', // Array of user IDs to assign
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Get max step_order for this template
+            $maxOrder = WorkflowStep::where('workflow_template_id', $request->workflow_template_id)
+                ->max('step_order') ?? 0;
+
+            $step = WorkflowStep::create([
+                'workflow_template_id' => $request->workflow_template_id,
+                'step_order' => $maxOrder + 1,
+                'step_name' => $request->step_name,
+                'approver_type' => $request->approver_type,
+                'department_id' => $request->department_id,
+                'required_approvals_count' => $request->required_approvals_count,
+                'approval_mode' => $request->approval_mode,
+                'can_skip' => $request->can_skip ?? false,
+                'timeout_hours' => $request->timeout_hours,
+            ]);
+
+            // Assign approvers if provided
+            if ($request->has('approver_ids') && is_array($request->approver_ids)) {
+                foreach ($request->approver_ids as $userId) {
+                    WorkflowStepApprover::create([
+                        'workflow_step_id' => $step->id,
+                        'user_id' => $userId,
+                        'role' => $request->approver_type === 'manager' ? 'manager' : 'employee',
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'step' => $step->load(['department', 'approvers.user']),
+                'message' => 'Workflow step created successfully'
+            ], 201);
+        } catch (\Exception $e) {
+            \Log::error('Create workflow step error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create workflow step'
+            ], 500);
+        }
+    }
+
+    /**
+     * Update a workflow step
+     */
+    public function updateWorkflowStep(Request $request, $id)
+    {
+        try {
+            $step = WorkflowStep::findOrFail($id);
+
+            $validator = Validator::make($request->all(), [
+                'step_name' => 'sometimes|string|max:255',
+                'approver_type' => 'sometimes|in:employee,manager,either',
+                'department_id' => 'sometimes|exists:departments,id',
+                'required_approvals_count' => 'sometimes|integer|min:1',
+                'approval_mode' => 'sometimes|in:all,any_count',
+                'can_skip' => 'nullable|boolean',
+                'timeout_hours' => 'nullable|integer|min:1',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $step->update($request->all());
+
+            return response()->json([
+                'success' => true,
+                'step' => $step->load(['department', 'approvers.user']),
+                'message' => 'Workflow step updated successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Update workflow step error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update workflow step'
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete a workflow step
+     */
+    public function deleteWorkflowStep($id)
+    {
+        try {
+            $step = WorkflowStep::findOrFail($id);
+
+            // Delete approvers first
+            $step->approvers()->delete();
+
+            // Delete step
+            $step->delete();
+
+            // Reorder remaining steps
+            $remainingSteps = WorkflowStep::where('workflow_template_id', $step->workflow_template_id)
+                ->orderBy('step_order')
+                ->get();
+
+            foreach ($remainingSteps as $index => $remainingStep) {
+                $remainingStep->update(['step_order' => $index + 1]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Workflow step deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Delete workflow step error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete workflow step'
+            ], 500);
+        }
+    }
+
+    /**
+     * Add approver to workflow step
+     */
+    public function addWorkflowStepApprover(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'workflow_step_id' => 'required|exists:workflow_steps,id',
+                'user_id' => 'required|exists:users,id',
+                'role' => 'required|in:employee,manager',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Check if already assigned
+            $existing = WorkflowStepApprover::where('workflow_step_id', $request->workflow_step_id)
+                ->where('user_id', $request->user_id)
+                ->first();
+
+            if ($existing) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User already assigned to this workflow step'
+                ], 422);
+            }
+
+            WorkflowStepApprover::create([
+                'workflow_step_id' => $request->workflow_step_id,
+                'user_id' => $request->user_id,
+                'role' => $request->role,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Approver added to workflow step successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Add workflow step approver error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to add approver'
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove approver from workflow step
+     */
+    public function removeWorkflowStepApprover(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'workflow_step_id' => 'required|exists:workflow_steps,id',
+                'user_id' => 'required|exists:users,id',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            WorkflowStepApprover::where('workflow_step_id', $request->workflow_step_id)
+                ->where('user_id', $request->user_id)
+                ->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Approver removed from workflow step successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Remove workflow step approver error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to remove approver'
             ], 500);
         }
     }
