@@ -1298,7 +1298,7 @@ const DepartmentNode = defineComponent({
     }
   },
   setup(props) {
-    const expanded = ref(true)
+    const expanded = ref(false)
 
     const toggleExpand = () => {
       expanded.value = !expanded.value
@@ -1320,56 +1320,36 @@ const DepartmentNode = defineComponent({
           )
         : []
 
-      return h('div', { class: 'department-node' }, [
-        h('div', { class: 'department-card-wrapper' }, [
-          // Connector line to parent
-          props.level > 0 && h('div', { class: 'connector-to-parent' }),
-
-          // Department Card
-          h('div', {
-            class: ['department-card', `level-${props.level}`, !dept.is_active && 'inactive']
-          }, [
-            h('div', { class: 'card-header-custom' }, [
-              h('strong', {}, dept.name),
-              hasChildren.value && h('button', {
-                class: ['btn btn-sm btn-link expand-btn'],
-                onClick: toggleExpand
-              }, [
-                h('i', {
-                  class: expanded.value ? 'bi bi-chevron-up' : 'bi bi-chevron-down'
-                })
-              ])
+      return h('div', { class: 'tree-node' }, [
+        h('div', { class: 'node-content' }, [
+          // Department Box
+          h('div', { class: 'dept-box' }, [
+            h('div', { class: 'dept-box-inner' }, [
+              h('div', { class: 'dept-name' }, dept.name),
+              dept.description && h('div', { class: 'dept-desc' }, dept.description)
             ]),
-            h('div', { class: 'card-body-custom' }, [
-              dept.description && h('small', { class: 'text-muted d-block mb-2' }, dept.description),
-              h('div', { class: 'd-flex flex-wrap gap-1 mb-2' }, [
-                h('span', { class: 'badge bg-info' }, `Step ${dept.approval_order}`),
-                h('span', {
-                  class: dept.is_active ? 'badge bg-success' : 'badge bg-secondary'
-                }, dept.is_active ? 'Active' : 'Inactive')
-              ]),
-              // Managers
-              dept.managers && dept.managers.length > 0 && h('div', { class: 'mb-1' }, [
-                h('small', { class: 'text-muted' }, 'Managers: '),
-                ...dept.managers.map((m: any) =>
-                  h('span', { class: 'badge bg-warning text-dark me-1', key: m.id }, m.name)
-                )
-              ]),
-              // Employees
-              dept.employees && dept.employees.length > 0 && h('div', {}, [
-                h('small', { class: 'text-muted' }, 'Employees: '),
-                ...dept.employees.map((e: any) =>
-                  h('span', { class: 'badge bg-secondary me-1', key: e.id }, e.name)
-                )
-              ])
+            // Plus/Minus Button
+            hasChildren.value && h('button', {
+              class: 'expand-toggle',
+              onClick: toggleExpand,
+              title: expanded.value ? 'Collapse' : 'Expand'
+            }, [
+              h('i', {
+                class: expanded.value ? 'bi bi-dash-circle-fill' : 'bi bi-plus-circle-fill'
+              })
             ])
-          ])
+          ]),
+
+          // Vertical Line to Children
+          expanded.value && hasChildren.value && h('div', { class: 'v-line' })
         ]),
 
         // Children Container
-        hasChildren.value && expanded.value && h('div', { class: 'children-container' }, [
-          h('div', { class: 'connector-line' }),
-          h('div', { class: 'children-wrapper' }, childNodes)
+        expanded.value && hasChildren.value && h('div', { class: 'children-row' }, [
+          // Horizontal Line
+          h('div', { class: 'h-line' }),
+          // Child Nodes
+          h('div', { class: 'children-nodes' }, childNodes)
         ])
       ])
     }
@@ -2235,8 +2215,8 @@ async function handleLogout() {
 /* ========== ORG CHART STYLES ========== */
 .org-chart-container {
   overflow-x: auto;
-  padding: 2rem 1rem;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 3rem 2rem;
+  background: #f8f9fa;
   border-radius: 8px;
 }
 
@@ -2244,138 +2224,155 @@ async function handleLogout() {
   display: flex;
   justify-content: center;
   min-width: fit-content;
+  padding: 20px;
 }
 
-.department-node {
+/* Tree Node */
+.tree-node {
   display: flex;
   flex-direction: column;
   align-items: center;
   position: relative;
-  margin: 0 1rem;
 }
 
-.department-card-wrapper {
+.node-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   position: relative;
-  margin-bottom: 1.5rem;
 }
 
-.connector-to-parent {
+/* Department Box */
+.dept-box {
+  position: relative;
+  background: linear-gradient(135deg, #4a9d8f 0%, #3d8278 100%);
+  border-radius: 12px;
+  min-width: 200px;
+  max-width: 280px;
+  padding: 20px 30px;
+  margin: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.dept-box:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.dept-box-inner {
+  color: white;
+  text-align: center;
+}
+
+.dept-name {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.dept-desc {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+/* Plus/Minus Button */
+.expand-toggle {
   position: absolute;
-  top: -1.5rem;
+  bottom: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+  transition: all 0.2s ease;
+}
+
+.expand-toggle:hover {
+  transform: translateX(-50%) scale(1.1);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.3);
+}
+
+.expand-toggle i {
+  font-size: 20px;
+  color: #4a9d8f;
+}
+
+/* Vertical Line */
+.v-line {
+  width: 2px;
+  height: 30px;
+  background: #4a9d8f;
+  margin-top: 15px;
+}
+
+/* Children Row */
+.children-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+/* Horizontal Line */
+.h-line {
+  height: 2px;
+  background: #4a9d8f;
+  width: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+/* Children Nodes Container */
+.children-nodes {
+  display: flex;
+  gap: 20px;
+  padding-top: 30px;
+  position: relative;
+}
+
+/* Connector lines for each child */
+.children-nodes > .tree-node::before {
+  content: '';
+  position: absolute;
+  top: -30px;
   left: 50%;
   width: 2px;
-  height: 1.5rem;
-  background: linear-gradient(to bottom, #667eea, #764ba2);
+  height: 30px;
+  background: #4a9d8f;
   transform: translateX(-50%);
 }
 
-.department-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 12px;
-  padding: 1px;
-  min-width: 280px;
-  max-width: 320px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-  position: relative;
-}
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .dept-box {
+    min-width: 150px;
+    max-width: 200px;
+    padding: 15px 20px;
+  }
 
-.department-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
-}
+  .dept-name {
+    font-size: 14px;
+  }
 
-.department-card.inactive {
-  background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
-  opacity: 0.7;
-}
+  .dept-desc {
+    font-size: 11px;
+  }
 
-.department-card .card-header-custom {
-  background: white;
-  padding: 0.75rem 1rem;
-  border-radius: 11px 11px 0 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: #667eea;
-  font-weight: 600;
-}
-
-.department-card .card-body-custom {
-  background: white;
-  padding: 1rem;
-  border-radius: 0 0 11px 11px;
-  font-size: 0.875rem;
-}
-
-.department-card .expand-btn {
-  padding: 0;
-  color: #667eea;
-  text-decoration: none;
-}
-
-.department-card .expand-btn:hover {
-  color: #764ba2;
-}
-
-.children-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-  width: 100%;
-}
-
-.connector-line {
-  width: 2px;
-  height: 2rem;
-  background: linear-gradient(to bottom, #667eea, #764ba2);
-}
-
-.children-wrapper {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-  position: relative;
-  flex-wrap: wrap;
-}
-
-.children-wrapper::before {
-  content: '';
-  position: absolute;
-  top: -2rem;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(to right, #667eea, #764ba2);
-}
-
-/* Level-based styling */
-.department-card.level-0 {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.department-card.level-1 {
-  background: linear-gradient(135deg, #17a2b8 0%, #20c997 100%);
-}
-
-.department-card.level-2 {
-  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-}
-
-.department-card.level-3 {
-  background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
-}
-
-.department-card.level-1 .card-header-custom {
-  color: #17a2b8;
-}
-
-.department-card.level-2 .card-header-custom {
-  color: #28a745;
-}
-
-.department-card.level-3 .card-header-custom {
-  color: #ffc107;
+  .children-nodes {
+    flex-wrap: wrap;
+    gap: 15px;
+  }
 }
 </style>
