@@ -1298,9 +1298,25 @@ const DepartmentNode = defineComponent({
     }
   },
   setup(props) {
+    const isExpanded = ref(false)
+
     const hasChildren = computed(() => {
       return props.department.children && props.department.children.length > 0
     })
+
+    const handleEdit = (dept: any) => {
+      alert(`Edit department: ${dept.name} (ID: ${dept.id})`)
+    }
+
+    const handleDelete = (dept: any) => {
+      if (confirm(`Delete department "${dept.name}"?`)) {
+        alert(`Delete department: ${dept.name} (ID: ${dept.id})`)
+      }
+    }
+
+    const toggleExpand = () => {
+      isExpanded.value = !isExpanded.value
+    }
 
     return () => {
       const dept = props.department
@@ -1317,14 +1333,32 @@ const DepartmentNode = defineComponent({
       return h('div', { class: 'tree-node' }, [
         // Department Box
         h('div', { class: 'dept-box' }, [
-          h('div', { class: 'dept-name' }, dept.name)
+          h('div', { class: 'dept-name' }, dept.name),
+          h('div', { class: 'dept-buttons' }, [
+            h('button', {
+              class: 'dept-btn',
+              onClick: () => handleEdit(dept)
+            }, 'Edit'),
+            h('button', {
+              class: 'dept-btn',
+              onClick: () => handleDelete(dept)
+            }, 'Delete')
+          ]),
+          // Expand/Collapse button if has children
+          hasChildren.value && h('button', {
+            class: 'expand-btn',
+            onClick: toggleExpand,
+            title: isExpanded.value ? 'Collapse' : 'Expand'
+          }, h('i', {
+            class: isExpanded.value ? 'bi bi-dash-circle' : 'bi bi-plus-circle'
+          }))
         ]),
 
-        // Vertical Line to Children
-        hasChildren.value && h('div', { class: 'v-line' }),
+        // Vertical Line to Children (only if expanded)
+        hasChildren.value && isExpanded.value && h('div', { class: 'v-line' }),
 
-        // Children Container
-        hasChildren.value && h('div', { class: 'children-row' }, [
+        // Children Container (only if expanded)
+        hasChildren.value && isExpanded.value && h('div', { class: 'children-row' }, [
           // Horizontal Line connecting siblings
           dept.children && dept.children.length > 1 && h('div', { class: 'h-line' }),
           // Child Nodes
@@ -2196,7 +2230,7 @@ async function handleLogout() {
   overflow-x: auto;
   overflow-y: auto;
   padding: 3rem 2rem;
-  background: #ffffff;
+  background: #f5f5f5;
   border-radius: 8px;
   max-height: 80vh;
 }
@@ -2214,26 +2248,27 @@ async function handleLogout() {
   flex-direction: column;
   align-items: center;
   position: relative;
-  margin: 0 15px;
+  margin: 0 20px;
 }
 
 /* Department Box */
 .dept-box {
   position: relative;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 8px;
-  min-width: 140px;
-  max-width: 160px;
-  padding: 15px 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: #6c7ff2;
+  border-radius: 6px;
+  min-width: 120px;
+  padding: 12px 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
   transition: all 0.2s ease;
-  cursor: pointer;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .dept-box:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 8px rgba(108, 127, 242, 0.3);
 }
 
 .dept-name {
@@ -2242,13 +2277,65 @@ async function handleLogout() {
   font-size: 14px;
   font-weight: 600;
   line-height: 1.3;
+  white-space: nowrap;
+}
+
+.dept-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dept-btn {
+  background: white;
+  color: #333;
+  border: none;
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.dept-btn:hover {
+  background: #f0f0f0;
+  transform: scale(1.02);
+}
+
+.dept-btn:active {
+  transform: scale(0.98);
+}
+
+.expand-btn {
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px;
+  margin-top: 4px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.expand-btn:hover {
+  transform: scale(1.1);
+}
+
+.expand-btn i {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Vertical Line from parent to children */
 .v-line {
-  width: 2px;
-  height: 40px;
-  background: #cbd5e0;
+  width: 1px;
+  height: 50px;
+  background: #999;
   margin: 0;
 }
 
@@ -2263,8 +2350,8 @@ async function handleLogout() {
 
 /* Horizontal Line connecting siblings */
 .h-line {
-  height: 2px;
-  background: #cbd5e0;
+  height: 1px;
+  background: #999;
   position: absolute;
   top: 0;
   left: 0;
@@ -2276,20 +2363,20 @@ async function handleLogout() {
 .children-nodes {
   display: flex;
   justify-content: center;
-  gap: 30px;
+  gap: 40px;
   position: relative;
-  padding-top: 40px;
+  padding-top: 50px;
 }
 
 /* Vertical line from horizontal bar down to each child */
 .children-nodes > .tree-node::before {
   content: '';
   position: absolute;
-  top: -40px;
+  top: -50px;
   left: 50%;
-  width: 2px;
-  height: 40px;
-  background: #cbd5e0;
+  width: 1px;
+  height: 50px;
+  background: #999;
   transform: translateX(-50%);
   z-index: 0;
 }
@@ -2297,27 +2384,44 @@ async function handleLogout() {
 /* Responsive adjustments */
 @media (max-width: 1200px) {
   .children-nodes {
-    gap: 20px;
+    gap: 30px;
   }
 }
 
 @media (max-width: 768px) {
   .dept-box {
-    min-width: 120px;
-    max-width: 140px;
-    padding: 12px 15px;
+    min-width: 100px;
+    padding: 10px 12px;
   }
 
   .dept-name {
     font-size: 12px;
   }
 
+  .dept-btn {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+
   .children-nodes {
-    gap: 15px;
+    gap: 20px;
   }
 
   .org-chart-container {
     padding: 2rem 1rem;
+  }
+
+  .v-line {
+    height: 40px;
+  }
+
+  .children-nodes {
+    padding-top: 40px;
+  }
+
+  .children-nodes > .tree-node::before {
+    height: 40px;
+    top: -40px;
   }
 }
 </style>
