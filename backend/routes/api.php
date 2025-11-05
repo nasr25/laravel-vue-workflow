@@ -66,6 +66,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Department management
     Route::prefix('admin/departments')->group(function () {
         Route::get('/', [AdminController::class, 'getDepartments']);
+        Route::get('/tree', [AdminController::class, 'getDepartmentTree']);
         Route::post('/', [AdminController::class, 'createDepartment']);
         Route::put('/{id}', [AdminController::class, 'updateDepartment']);
         Route::delete('/{id}', [AdminController::class, 'deleteDepartment']);

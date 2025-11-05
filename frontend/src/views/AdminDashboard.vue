@@ -56,6 +56,16 @@
         <li class="nav-item" role="presentation">
           <button
             class="nav-link"
+            :class="{ active: activeTab === 'orgchart' }"
+            @click="activeTab = 'orgchart'; loadDepartmentTree()"
+          >
+            <i class="bi bi-diagram-2 me-2"></i>
+            Org Chart
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button
+            class="nav-link"
             :class="{ active: activeTab === 'forms' }"
             @click="activeTab = 'forms'; loadFormTypes(); loadWorkflowTemplates()"
           >
@@ -779,6 +789,45 @@
         </div>
       </div>
 
+      <!-- Org Chart Tab -->
+      <div v-if="activeTab === 'orgchart'">
+        <div class="card shadow-sm border-0">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+              <i class="bi bi-diagram-2 me-2"></i>
+              Organization Chart
+            </h5>
+          </div>
+          <div class="card-body p-4">
+            <!-- Loading State -->
+            <div v-if="loading" class="text-center py-5">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <p class="text-muted mt-3">Loading organization chart...</p>
+            </div>
+
+            <!-- Tree View -->
+            <div v-else-if="departmentTree.length > 0" class="org-chart-container">
+              <div class="tree-view">
+                <DepartmentNode
+                  v-for="dept in departmentTree"
+                  :key="dept.id"
+                  :department="dept"
+                  :level="0"
+                />
+              </div>
+            </div>
+
+            <!-- Empty State -->
+            <div v-else class="text-center py-5">
+              <i class="bi bi-diagram-2 display-1 text-muted"></i>
+              <p class="text-muted mt-3">No departments found. Create departments to build your organization chart.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Forms & Workflows Tab -->
       <div v-if="activeTab === 'forms'">
         <div class="row">
@@ -1230,18 +1279,111 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive, computed } from 'vue'
+import { ref, onMounted, reactive, computed, defineComponent, h } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import api from '../services/api'
 
+// Department Node Component
+const DepartmentNode = defineComponent({
+  name: 'DepartmentNode',
+  props: {
+    department: {
+      type: Object,
+      required: true
+    },
+    level: {
+      type: Number,
+      default: 0
+    }
+  },
+  setup(props) {
+    const expanded = ref(true)
+
+    const toggleExpand = () => {
+      expanded.value = !expanded.value
+    }
+
+    const hasChildren = computed(() => {
+      return props.department.children && props.department.children.length > 0
+    })
+
+    return () => {
+      const dept = props.department
+      const childNodes = expanded.value && dept.children
+        ? dept.children.map((child: any) =>
+            h(DepartmentNode, {
+              key: child.id,
+              department: child,
+              level: props.level + 1
+            })
+          )
+        : []
+
+      return h('div', { class: 'department-node' }, [
+        h('div', { class: 'department-card-wrapper' }, [
+          // Connector line to parent
+          props.level > 0 && h('div', { class: 'connector-to-parent' }),
+
+          // Department Card
+          h('div', {
+            class: ['department-card', `level-${props.level}`, !dept.is_active && 'inactive']
+          }, [
+            h('div', { class: 'card-header-custom' }, [
+              h('strong', {}, dept.name),
+              hasChildren.value && h('button', {
+                class: ['btn btn-sm btn-link expand-btn'],
+                onClick: toggleExpand
+              }, [
+                h('i', {
+                  class: expanded.value ? 'bi bi-chevron-up' : 'bi bi-chevron-down'
+                })
+              ])
+            ]),
+            h('div', { class: 'card-body-custom' }, [
+              dept.description && h('small', { class: 'text-muted d-block mb-2' }, dept.description),
+              h('div', { class: 'd-flex flex-wrap gap-1 mb-2' }, [
+                h('span', { class: 'badge bg-info' }, `Step ${dept.approval_order}`),
+                h('span', {
+                  class: dept.is_active ? 'badge bg-success' : 'badge bg-secondary'
+                }, dept.is_active ? 'Active' : 'Inactive')
+              ]),
+              // Managers
+              dept.managers && dept.managers.length > 0 && h('div', { class: 'mb-1' }, [
+                h('small', { class: 'text-muted' }, 'Managers: '),
+                ...dept.managers.map((m: any) =>
+                  h('span', { class: 'badge bg-warning text-dark me-1', key: m.id }, m.name)
+                )
+              ]),
+              // Employees
+              dept.employees && dept.employees.length > 0 && h('div', {}, [
+                h('small', { class: 'text-muted' }, 'Employees: '),
+                ...dept.employees.map((e: any) =>
+                  h('span', { class: 'badge bg-secondary me-1', key: e.id }, e.name)
+                )
+              ])
+            ])
+          ])
+        ]),
+
+        // Children Container
+        hasChildren.value && expanded.value && h('div', { class: 'children-container' }, [
+          h('div', { class: 'connector-line' }),
+          h('div', { class: 'children-wrapper' }, childNodes)
+        ])
+      ])
+    }
+  }
+})
+
 const router = useRouter()
 const authStore = useAuthStore()
 
-const activeTab = ref<'managers' | 'employees' | 'departments' | 'forms' | 'users'>('managers')
+const activeTab = ref<'managers' | 'employees' | 'departments' | 'orgchart' | 'forms' | 'users'>('managers')
 const managers = ref<any[]>([])
 const employees = ref<any[]>([])
 const departments = ref<any[]>([])
+const departmentTree = ref<any[]>([])
 const formTypes = ref<any[]>([])
 const workflowTemplates = ref<any[]>([])
 const allUsers = ref<any[]>([])
@@ -1363,6 +1505,21 @@ async function loadDepartments() {
     await loadPendingIdeasCount()
   } catch (error) {
     console.error('Failed to load departments:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadDepartmentTree() {
+  loading.value = true
+  try {
+    const response = await api.getDepartmentTree()
+    if (response.data.success) {
+      departmentTree.value = response.data.tree || []
+    }
+  } catch (error) {
+    console.error('Failed to load department tree:', error)
+    alert('Failed to load organization chart')
   } finally {
     loading.value = false
   }
@@ -2073,5 +2230,152 @@ async function handleLogout() {
   .table td, .table th {
     padding: 0.5rem;
   }
+}
+
+/* ========== ORG CHART STYLES ========== */
+.org-chart-container {
+  overflow-x: auto;
+  padding: 2rem 1rem;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  border-radius: 8px;
+}
+
+.tree-view {
+  display: flex;
+  justify-content: center;
+  min-width: fit-content;
+}
+
+.department-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  margin: 0 1rem;
+}
+
+.department-card-wrapper {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.connector-to-parent {
+  position: absolute;
+  top: -1.5rem;
+  left: 50%;
+  width: 2px;
+  height: 1.5rem;
+  background: linear-gradient(to bottom, #667eea, #764ba2);
+  transform: translateX(-50%);
+}
+
+.department-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 1px;
+  min-width: 280px;
+  max-width: 320px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.department-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+}
+
+.department-card.inactive {
+  background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+  opacity: 0.7;
+}
+
+.department-card .card-header-custom {
+  background: white;
+  padding: 0.75rem 1rem;
+  border-radius: 11px 11px 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #667eea;
+  font-weight: 600;
+}
+
+.department-card .card-body-custom {
+  background: white;
+  padding: 1rem;
+  border-radius: 0 0 11px 11px;
+  font-size: 0.875rem;
+}
+
+.department-card .expand-btn {
+  padding: 0;
+  color: #667eea;
+  text-decoration: none;
+}
+
+.department-card .expand-btn:hover {
+  color: #764ba2;
+}
+
+.children-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  width: 100%;
+}
+
+.connector-line {
+  width: 2px;
+  height: 2rem;
+  background: linear-gradient(to bottom, #667eea, #764ba2);
+}
+
+.children-wrapper {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  position: relative;
+  flex-wrap: wrap;
+}
+
+.children-wrapper::before {
+  content: '';
+  position: absolute;
+  top: -2rem;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(to right, #667eea, #764ba2);
+}
+
+/* Level-based styling */
+.department-card.level-0 {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.department-card.level-1 {
+  background: linear-gradient(135deg, #17a2b8 0%, #20c997 100%);
+}
+
+.department-card.level-2 {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+}
+
+.department-card.level-3 {
+  background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+}
+
+.department-card.level-1 .card-header-custom {
+  color: #17a2b8;
+}
+
+.department-card.level-2 .card-header-custom {
+  color: #28a745;
+}
+
+.department-card.level-3 .card-header-custom {
+  color: #ffc107;
 }
 </style>

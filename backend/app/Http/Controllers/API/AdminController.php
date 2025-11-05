@@ -143,6 +143,31 @@ class AdminController extends Controller
     }
 
     /**
+     * Get department hierarchy tree
+     */
+    public function getDepartmentTree()
+    {
+        try {
+            // Get all root departments (no parent) with their children recursively
+            $departments = Department::with(['children', 'managers', 'employees'])
+                ->whereNull('parent_id')
+                ->orderBy('approval_order')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'tree' => $departments
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Get department tree error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch department tree'
+            ], 500);
+        }
+    }
+
+    /**
      * Get all managers (users with manager role)
      */
     public function getManagers()

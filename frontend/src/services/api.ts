@@ -128,6 +128,10 @@ export default {
     return api.get('/admin/departments')
   },
 
+  getDepartmentTree() {
+    return api.get('/admin/departments/tree')
+  },
+
   getManagers() {
     return api.get('/admin/managers')
   },

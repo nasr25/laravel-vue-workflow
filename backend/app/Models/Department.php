@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Department extends Model
 {
-    protected $fillable = ['name', 'description', 'approval_order', 'is_active'];
+    protected $fillable = ['name', 'description', 'approval_order', 'is_active', 'parent_id'];
 
     protected $casts = [
         'is_active' => 'boolean',
@@ -52,5 +52,21 @@ class Department extends Model
     public function approvals()
     {
         return $this->hasMany(IdeaApproval::class);
+    }
+
+    /**
+     * Get the parent department
+     */
+    public function parent()
+    {
+        return $this->belongsTo(Department::class, 'parent_id');
+    }
+
+    /**
+     * Get child departments
+     */
+    public function children()
+    {
+        return $this->hasMany(Department::class, 'parent_id')->with('children');
     }
 }
