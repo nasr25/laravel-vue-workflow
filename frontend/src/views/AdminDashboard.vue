@@ -1298,19 +1298,13 @@ const DepartmentNode = defineComponent({
     }
   },
   setup(props) {
-    const expanded = ref(false)
-
-    const toggleExpand = () => {
-      expanded.value = !expanded.value
-    }
-
     const hasChildren = computed(() => {
       return props.department.children && props.department.children.length > 0
     })
 
     return () => {
       const dept = props.department
-      const childNodes = expanded.value && dept.children
+      const childNodes = dept.children
         ? dept.children.map((child: any) =>
             h(DepartmentNode, {
               key: child.id,
@@ -1321,33 +1315,18 @@ const DepartmentNode = defineComponent({
         : []
 
       return h('div', { class: 'tree-node' }, [
-        h('div', { class: 'node-content' }, [
-          // Department Box
-          h('div', { class: 'dept-box' }, [
-            h('div', { class: 'dept-box-inner' }, [
-              h('div', { class: 'dept-name' }, dept.name),
-              dept.description && h('div', { class: 'dept-desc' }, dept.description)
-            ]),
-            // Plus/Minus Button
-            hasChildren.value && h('button', {
-              class: 'expand-toggle',
-              onClick: toggleExpand,
-              title: expanded.value ? 'Collapse' : 'Expand'
-            }, [
-              h('i', {
-                class: expanded.value ? 'bi bi-dash-circle-fill' : 'bi bi-plus-circle-fill'
-              })
-            ])
-          ]),
-
-          // Vertical Line to Children
-          expanded.value && hasChildren.value && h('div', { class: 'v-line' })
+        // Department Box
+        h('div', { class: 'dept-box' }, [
+          h('div', { class: 'dept-name' }, dept.name)
         ]),
 
+        // Vertical Line to Children
+        hasChildren.value && h('div', { class: 'v-line' }),
+
         // Children Container
-        expanded.value && hasChildren.value && h('div', { class: 'children-row' }, [
-          // Horizontal Line
-          h('div', { class: 'h-line' }),
+        hasChildren.value && h('div', { class: 'children-row' }, [
+          // Horizontal Line connecting siblings
+          dept.children && dept.children.length > 1 && h('div', { class: 'h-line' }),
           // Child Nodes
           h('div', { class: 'children-nodes' }, childNodes)
         ])
@@ -2215,9 +2194,11 @@ async function handleLogout() {
 /* ========== ORG CHART STYLES ========== */
 .org-chart-container {
   overflow-x: auto;
+  overflow-y: auto;
   padding: 3rem 2rem;
-  background: #f8f9fa;
+  background: #ffffff;
   border-radius: 8px;
+  max-height: 80vh;
 }
 
 .tree-view {
@@ -2233,86 +2214,42 @@ async function handleLogout() {
   flex-direction: column;
   align-items: center;
   position: relative;
-}
-
-.node-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
+  margin: 0 15px;
 }
 
 /* Department Box */
 .dept-box {
   position: relative;
-  background: linear-gradient(135deg, #4a9d8f 0%, #3d8278 100%);
-  border-radius: 12px;
-  min-width: 200px;
-  max-width: 280px;
-  padding: 20px 30px;
-  margin: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  transition: all 0.3s ease;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 8px;
+  min-width: 140px;
+  max-width: 160px;
+  padding: 15px 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
   cursor: pointer;
+  z-index: 1;
 }
 
 .dept-box:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-}
-
-.dept-box-inner {
-  color: white;
-  text-align: center;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
 .dept-name {
-  font-size: 16px;
+  color: white;
+  text-align: center;
+  font-size: 14px;
   font-weight: 600;
-  margin-bottom: 5px;
+  line-height: 1.3;
 }
 
-.dept-desc {
-  font-size: 12px;
-  opacity: 0.9;
-}
-
-/* Plus/Minus Button */
-.expand-toggle {
-  position: absolute;
-  bottom: -15px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: white;
-  border: none;
-  border-radius: 50%;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  z-index: 10;
-  transition: all 0.2s ease;
-}
-
-.expand-toggle:hover {
-  transform: translateX(-50%) scale(1.1);
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.3);
-}
-
-.expand-toggle i {
-  font-size: 20px;
-  color: #4a9d8f;
-}
-
-/* Vertical Line */
+/* Vertical Line from parent to children */
 .v-line {
   width: 2px;
-  height: 30px;
-  background: #4a9d8f;
-  margin-top: 15px;
+  height: 40px;
+  background: #cbd5e0;
+  margin: 0;
 }
 
 /* Children Row */
@@ -2321,58 +2258,66 @@ async function handleLogout() {
   flex-direction: column;
   align-items: center;
   position: relative;
+  width: 100%;
 }
 
-/* Horizontal Line */
+/* Horizontal Line connecting siblings */
 .h-line {
   height: 2px;
-  background: #4a9d8f;
-  width: 100%;
+  background: #cbd5e0;
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
+  z-index: 0;
 }
 
 /* Children Nodes Container */
 .children-nodes {
   display: flex;
-  gap: 20px;
-  padding-top: 30px;
+  justify-content: center;
+  gap: 30px;
   position: relative;
+  padding-top: 40px;
 }
 
-/* Connector lines for each child */
+/* Vertical line from horizontal bar down to each child */
 .children-nodes > .tree-node::before {
   content: '';
   position: absolute;
-  top: -30px;
+  top: -40px;
   left: 50%;
   width: 2px;
-  height: 30px;
-  background: #4a9d8f;
+  height: 40px;
+  background: #cbd5e0;
   transform: translateX(-50%);
+  z-index: 0;
 }
 
 /* Responsive adjustments */
+@media (max-width: 1200px) {
+  .children-nodes {
+    gap: 20px;
+  }
+}
+
 @media (max-width: 768px) {
   .dept-box {
-    min-width: 150px;
-    max-width: 200px;
-    padding: 15px 20px;
+    min-width: 120px;
+    max-width: 140px;
+    padding: 12px 15px;
   }
 
   .dept-name {
-    font-size: 14px;
-  }
-
-  .dept-desc {
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .children-nodes {
-    flex-wrap: wrap;
     gap: 15px;
+  }
+
+  .org-chart-container {
+    padding: 2rem 1rem;
   }
 }
 </style>
