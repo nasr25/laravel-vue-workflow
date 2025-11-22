@@ -3,7 +3,7 @@
     <div class="page-card">
       <div class="header">
         <button @click="goBack" class="btn-back">← Back</button>
-        <h1>New Request</h1>
+        <h1>{{ isEditMode ? 'Edit Request' : 'New Request' }}</h1>
       </div>
 
       <div v-if="error" class="alert alert-error">
@@ -36,6 +36,17 @@
             rows="6"
             required
           ></textarea>
+        </div>
+
+        <div v-if="isEditMode" class="form-group">
+          <label for="additional_details">Additional Details</label>
+          <textarea
+            id="additional_details"
+            v-model="form.additional_details"
+            placeholder="Add any additional information requested by the reviewer"
+            rows="4"
+          ></textarea>
+          <p class="help-text">Use this field to address feedback from the review process</p>
         </div>
 
         <div class="form-group">
@@ -75,14 +86,14 @@
             :disabled="isLoading || !form.title || !form.description"
             class="btn-secondary"
           >
-            {{ isLoading ? 'Saving...' : 'Save Draft' }}
+            {{ isLoading ? 'Saving...' : (isEditMode ? 'Save Changes' : 'Save Draft') }}
           </button>
           <button
             type="submit"
             :disabled="isLoading || !form.title || !form.description"
             class="btn-primary"
           >
-            {{ isLoading ? 'Submitting...' : 'Submit Request' }}
+            {{ isLoading ? 'Submitting...' : (isEditMode ? 'Resubmit Request' : 'Submit Request') }}
           </button>
         </div>
       </form>
@@ -91,17 +102,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import axios from 'axios'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
 const form = ref({
   title: '',
-  description: ''
+  description: '',
+  additional_details: ''
 })
 
 const error = ref(null)
@@ -113,15 +126,54 @@ const currentRequestId = ref(null)
 
 const API_URL = 'http://localhost:8000/api'
 
-onMounted(() => {
+const isEditMode = computed(() => !!route.params.id)
+
+onMounted(async () => {
   // Ensure only users with 'user' role can access this page
   if (authStore.user?.role !== 'user') {
     error.value = 'Only users can submit requests'
     setTimeout(() => {
       router.push('/dashboard')
     }, 2000)
+    return
+  }
+
+  // If edit mode, load the request
+  if (isEditMode.value) {
+    await loadRequestForEdit()
   }
 })
+
+const loadRequestForEdit = async () => {
+  try {
+    isLoading.value = true
+    const response = await axios.get(`${API_URL}/requests/${route.params.id}`, {
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      }
+    })
+
+    const request = response.data.request
+
+    // Check if request can be edited
+    if (request.status !== 'draft' && request.status !== 'need_more_details') {
+      error.value = 'This request cannot be edited'
+      setTimeout(() => router.push('/requests'), 2000)
+      return
+    }
+
+    form.value.title = request.title
+    form.value.description = request.description
+    form.value.additional_details = request.additional_details || ''
+    currentRequestId.value = request.id
+    uploadedFiles.value = request.attachments || []
+  } catch (err) {
+    error.value = err.response?.data?.message || 'Failed to load request'
+    setTimeout(() => router.push('/requests'), 2000)
+  } finally {
+    isLoading.value = false
+  }
+}
 
 const goBack = () => {
   router.push('/dashboard')
@@ -234,7 +286,8 @@ const saveDraft = async () => {
         `${API_URL}/requests/${currentRequestId.value}`,
         {
           title: form.value.title,
-          description: form.value.description
+          description: form.value.description,
+          additional_details: form.value.additional_details
         },
         {
           headers: {
@@ -276,7 +329,8 @@ const handleSubmit = async () => {
         `${API_URL}/requests/${currentRequestId.value}`,
         {
           title: form.value.title,
-          description: form.value.description
+          description: form.value.description,
+          additional_details: form.value.additional_details
         },
         {
           headers: {

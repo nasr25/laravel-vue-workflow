@@ -4,10 +4,23 @@
       <div class="header">
         <button @click="goBack" class="btn-back">← Back</button>
         <h1>Request Details</h1>
+        <button
+          v-if="request && request.status === 'need_more_details'"
+          @click="editRequest"
+          class="btn-edit"
+        >
+          ✏️ Edit & Resubmit
+        </button>
       </div>
 
       <div v-if="error" class="alert alert-error">
         {{ error }}
+      </div>
+
+      <!-- Need More Details Notice -->
+      <div v-if="request && request.status === 'need_more_details'" class="alert alert-warning">
+        <strong>⚠️ More Details Required</strong>
+        <p>This request needs additional information. Please review the comments in the workflow history below, update your request, and resubmit.</p>
       </div>
 
       <div v-if="isLoading" class="loading">
@@ -186,6 +199,10 @@ const goBack = () => {
   router.push('/requests')
 }
 
+const editRequest = () => {
+  router.push(`/requests/${route.params.id}/edit`)
+}
+
 const formatStatus = (status) => {
   if (!status) return 'N/A'
   return status
@@ -282,14 +299,32 @@ const getDepartmentName = (deptId) => {
   background: #e0e0e0;
 }
 
+.btn-edit {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: transform 0.2s;
+  margin-left: auto;
+}
+
+.btn-edit:hover {
+  transform: translateY(-2px);
+}
+
 h1 {
   color: #333;
   font-size: 28px;
   margin: 0;
+  flex: 1;
 }
 
 .alert {
-  padding: 12px;
+  padding: 15px;
   border-radius: 8px;
   margin-bottom: 20px;
   font-size: 14px;
@@ -299,6 +334,23 @@ h1 {
   background: #fee;
   color: #c33;
   border: 1px solid #fcc;
+}
+
+.alert-warning {
+  background: #fff3cd;
+  color: #856404;
+  border: 2px solid #ffc107;
+}
+
+.alert-warning strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 16px;
+}
+
+.alert-warning p {
+  margin: 0;
+  line-height: 1.5;
 }
 
 .loading {

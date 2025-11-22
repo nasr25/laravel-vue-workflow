@@ -36,6 +36,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/requests/:id/edit',
+    name: 'EditRequest',
+    component: () => import('../views/NewRequest.vue'),
+    meta: { requiresAuth: true, isEdit: true }
+  },
+  {
     path: '/workflow/review',
     name: 'WorkflowReview',
     component: () => import('../views/WorkflowReview.vue'),

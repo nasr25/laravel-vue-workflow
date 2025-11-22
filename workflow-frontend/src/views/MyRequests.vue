@@ -89,6 +89,7 @@ const statuses = [
   { label: 'Draft', value: 'draft' },
   { label: 'Pending', value: 'pending' },
   { label: 'In Review', value: 'in_review' },
+  { label: 'Need Details', value: 'need_more_details' },
   { label: 'Approved', value: 'approved' },
   { label: 'Rejected', value: 'rejected' },
   { label: 'Completed', value: 'completed' }
