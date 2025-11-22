@@ -1,5 +1,8 @@
 <template>
   <div class="login-container">
+    <div class="language-switcher-wrapper">
+      <LanguageSwitcher />
+    </div>
     <div class="login-card">
       <h1>🚀 Workflow System</h1>
       <p class="subtitle">Login to access your workflow dashboard</p>
@@ -108,6 +111,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -168,6 +172,19 @@ const fillLogin = (email) => {
   justify-content: center;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   padding: 20px;
+  position: relative;
+}
+
+.language-switcher-wrapper {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 10;
+}
+
+html[dir="rtl"] .language-switcher-wrapper {
+  right: auto;
+  left: 20px;
 }
 
 .login-card {
