@@ -335,6 +335,9 @@ class DatabaseSeeder extends Seeder
             'requires_approval' => true,
         ]);
 
+        // Call the Roles and Permissions Seeder
+        $this->call(RolesAndPermissionsSeeder::class);
+
         $this->command->info('Database seeded successfully!');
         $this->command->info('');
         $this->command->info('Login Credentials:');

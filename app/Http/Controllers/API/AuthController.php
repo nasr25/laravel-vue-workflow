@@ -58,10 +58,15 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        // Load user with relationships and permissions
+        $user->load(['departments', 'roles.permissions']);
+
         return response()->json([
             'user' => $user,
             'token' => $token,
             'token_type' => 'Bearer',
+            'permissions' => $user->getAllPermissions()->pluck('name'),
+            'roles' => $user->getRoleNames()
         ]);
     }
 
@@ -76,8 +81,12 @@ class AuthController extends Controller
 
     public function user(Request $request)
     {
+        $user = $request->user()->load(['departments', 'roles.permissions']);
+
         return response()->json([
-            'user' => $request->user()->load('departments')
+            'user' => $user,
+            'permissions' => $user->getAllPermissions()->pluck('name'),
+            'roles' => $user->getRoleNames()
         ]);
     }
 }

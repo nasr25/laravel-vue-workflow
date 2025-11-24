@@ -7,6 +7,7 @@ use App\Http\Controllers\API\RequestController;
 use App\Http\Controllers\API\WorkflowController;
 use App\Http\Controllers\API\DepartmentWorkflowController;
 use App\Http\Controllers\API\AdminController;
+use App\Http\Controllers\API\PermissionManagementController;
 
 // Public routes
 Route::post('/auth/register', [AuthController::class, 'register']);
@@ -75,6 +76,29 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/admin/evaluation-questions/{id}', [AdminController::class, 'updateEvaluationQuestion']);
     Route::delete('/admin/evaluation-questions/{id}', [AdminController::class, 'deleteEvaluationQuestion']);
     Route::get('/admin/evaluation-weight-total', [AdminController::class, 'getEvaluationWeightTotal']);
+
+    // Permission Management (Admin/Super Admin only)
+    Route::prefix('permissions')->group(function () {
+        // Roles Management
+        Route::get('/roles', [PermissionManagementController::class, 'getRoles']);
+        Route::get('/roles/{id}', [PermissionManagementController::class, 'getRoleDetails']);
+        Route::post('/roles', [PermissionManagementController::class, 'createRole']);
+        Route::put('/roles/{id}', [PermissionManagementController::class, 'updateRole']);
+        Route::delete('/roles/{id}', [PermissionManagementController::class, 'deleteRole']);
+
+        // Permissions List
+        Route::get('/list', [PermissionManagementController::class, 'getPermissions']);
+
+        // User Role Assignment
+        Route::post('/assign-role', [PermissionManagementController::class, 'assignRole']);
+        Route::post('/remove-role', [PermissionManagementController::class, 'removeRole']);
+
+        // User Permissions
+        Route::get('/users/{userId}', [PermissionManagementController::class, 'getUserPermissions']);
+        Route::post('/users/give-permission', [PermissionManagementController::class, 'givePermissionToUser']);
+        Route::post('/users/revoke-permission', [PermissionManagementController::class, 'revokePermissionFromUser']);
+        Route::post('/users/{userId}/check', [PermissionManagementController::class, 'checkPermission']);
+    });
 
     // Test route
     Route::get('/test', function () {
