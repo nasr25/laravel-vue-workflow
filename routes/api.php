@@ -20,14 +20,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'user']); // Keep for compatibility
 
     // Request routes
-    Route::get('/requests', [RequestController::class, 'index']);
-    Route::post('/requests', [RequestController::class, 'store']);
-    Route::get('/requests/{id}', [RequestController::class, 'show']);
-    Route::put('/requests/{id}', [RequestController::class, 'update']);
-    Route::delete('/requests/{id}', [RequestController::class, 'destroy']);
-    Route::post('/requests/{id}/submit', [RequestController::class, 'submit']);
-    Route::post('/requests/{id}/attachments', [RequestController::class, 'uploadAttachment']);
-    Route::delete('/requests/{requestId}/attachments/{attachmentId}', [RequestController::class, 'deleteAttachment']);
+    Route::get('/requests', [RequestController::class, 'index'])->middleware('permission:request.view-own');
+    Route::post('/requests', [RequestController::class, 'store'])->middleware('permission:request.create');
+    Route::get('/requests/{id}', [RequestController::class, 'show'])->middleware('permission:request.view-own');
+    Route::put('/requests/{id}', [RequestController::class, 'update'])->middleware('permission:request.edit-own');
+    Route::delete('/requests/{id}', [RequestController::class, 'destroy'])->middleware('permission:request.delete-own');
+    Route::post('/requests/{id}/submit', [RequestController::class, 'submit'])->middleware('permission:request.submit');
+    Route::post('/requests/{id}/attachments', [RequestController::class, 'uploadAttachment'])->middleware('permission:request.edit-own');
+    Route::delete('/requests/{requestId}/attachments/{attachmentId}', [RequestController::class, 'deleteAttachment'])->middleware('permission:request.delete-own');
 
     // Workflow routes (Department A managers)
     Route::get('/workflow/pending-requests', [WorkflowController::class, 'getPendingRequests']);

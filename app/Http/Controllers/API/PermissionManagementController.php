@@ -18,6 +18,11 @@ class PermissionManagementController extends Controller
     {
         $roles = Role::with('permissions')->get();
 
+        // Manually add users_count to each role
+        $roles->each(function ($role) {
+            $role->users_count = User::role($role->name)->count();
+        });
+
         return response()->json([
             'roles' => $roles
         ]);
@@ -28,9 +33,7 @@ class PermissionManagementController extends Controller
      */
     public function getPermissions()
     {
-        $permissions = Permission::all()->groupBy(function($permission) {
-            return explode('.', $permission->name)[0];
-        });
+        $permissions = Permission::all();
 
         return response()->json([
             'permissions' => $permissions

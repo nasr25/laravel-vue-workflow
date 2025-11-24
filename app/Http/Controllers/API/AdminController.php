@@ -124,7 +124,7 @@ class AdminController extends Controller
 
         $users = User::with(['departments' => function($query) {
             $query->withPivot('role');
-        }])->get();
+        }, 'roles'])->get();
 
         return response()->json([
             'users' => $users

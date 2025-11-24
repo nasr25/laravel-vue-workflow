@@ -11,30 +11,39 @@ use Illuminate\Http\Request as HttpRequest;
 class WorkflowController extends Controller
 {
     /**
+     * Check if user has workflow permission
+     */
+    private function checkWorkflowPermission($user, $permission)
+    {
+        if (!$user->hasPermissionTo($permission)) {
+            return response()->json([
+                'message' => 'Unauthorized. You do not have permission to perform this action.'
+            ], 403);
+        }
+        return null;
+    }
+
+    /**
      * Get all pending requests for Department A review
      */
     public function getPendingRequests(HttpRequest $request)
     {
         $user = $request->user();
 
-        // Check if user is manager in Department A
+        // Check permission
+        if (!$user->hasPermissionTo('workflow.view-pending')) {
+            return response()->json([
+                'message' => 'Unauthorized. You do not have permission to view pending requests.'
+            ], 403);
+        }
+
+        // Get Department A
         $deptA = Department::where('is_department_a', true)->first();
 
         if (!$deptA) {
             return response()->json([
                 'message' => 'Department A not found'
             ], 404);
-        }
-
-        $isManagerOfDeptA = $user->departments()
-            ->where('department_id', $deptA->id)
-            ->wherePivot('role', 'manager')
-            ->exists();
-
-        if (!$isManagerOfDeptA && $user->role !== 'admin') {
-            return response()->json([
-                'message' => 'Unauthorized. Only Department A managers can access this.'
-            ], 403);
         }
 
         // Get all requests that are in Department A
@@ -71,24 +80,18 @@ class WorkflowController extends Controller
     {
         $user = $request->user();
 
-        // Check if user is manager in Department A
+        // Check permission
+        if ($error = $this->checkWorkflowPermission($user, 'workflow.assign-path')) {
+            return $error;
+        }
+
+        // Get Department A
         $deptA = Department::where('is_department_a', true)->first();
 
         if (!$deptA) {
             return response()->json([
                 'message' => 'Department A not found'
             ], 404);
-        }
-
-        $isManagerOfDeptA = $user->departments()
-            ->where('department_id', $deptA->id)
-            ->wherePivot('role', 'manager')
-            ->exists();
-
-        if (!$isManagerOfDeptA && $user->role !== 'admin') {
-            return response()->json([
-                'message' => 'Unauthorized. Only Department A managers can assign paths.'
-            ], 403);
         }
 
         $validated = $request->validate([
@@ -143,24 +146,18 @@ class WorkflowController extends Controller
     {
         $user = $request->user();
 
-        // Check if user is manager in Department A
+        // Check permission
+        if ($error = $this->checkWorkflowPermission($user, 'workflow.reject-request')) {
+            return $error;
+        }
+
+        // Get Department A
         $deptA = Department::where('is_department_a', true)->first();
 
         if (!$deptA) {
             return response()->json([
                 'message' => 'Department A not found'
             ], 404);
-        }
-
-        $isManagerOfDeptA = $user->departments()
-            ->where('department_id', $deptA->id)
-            ->wherePivot('role', 'manager')
-            ->exists();
-
-        if (!$isManagerOfDeptA && $user->role !== 'admin') {
-            return response()->json([
-                'message' => 'Unauthorized. Only Department A managers can reject requests.'
-            ], 403);
         }
 
         $validated = $request->validate([
@@ -204,24 +201,18 @@ class WorkflowController extends Controller
     {
         $user = $request->user();
 
-        // Check if user is manager in Department A
+        // Check permission
+        if ($error = $this->checkWorkflowPermission($user, 'workflow.request-details')) {
+            return $error;
+        }
+
+        // Get Department A
         $deptA = Department::where('is_department_a', true)->first();
 
         if (!$deptA) {
             return response()->json([
                 'message' => 'Department A not found'
             ], 404);
-        }
-
-        $isManagerOfDeptA = $user->departments()
-            ->where('department_id', $deptA->id)
-            ->wherePivot('role', 'manager')
-            ->exists();
-
-        if (!$isManagerOfDeptA && $user->role !== 'admin') {
-            return response()->json([
-                'message' => 'Unauthorized. Only Department A managers can request more details.'
-            ], 403);
         }
 
         $validated = $request->validate([
@@ -264,24 +255,18 @@ class WorkflowController extends Controller
     {
         $user = $request->user();
 
-        // Check if user is manager in Department A
+        // Check permission
+        if ($error = $this->checkWorkflowPermission($user, 'workflow.complete-request')) {
+            return $error;
+        }
+
+        // Get Department A
         $deptA = Department::where('is_department_a', true)->first();
 
         if (!$deptA) {
             return response()->json([
                 'message' => 'Department A not found'
             ], 404);
-        }
-
-        $isManagerOfDeptA = $user->departments()
-            ->where('department_id', $deptA->id)
-            ->wherePivot('role', 'manager')
-            ->exists();
-
-        if (!$isManagerOfDeptA && $user->role !== 'admin') {
-            return response()->json([
-                'message' => 'Unauthorized. Only Department A managers can complete requests.'
-            ], 403);
         }
 
         $validated = $request->validate([
@@ -324,24 +309,18 @@ class WorkflowController extends Controller
     {
         $user = $request->user();
 
-        // Check if user is manager in Department A
+        // Check permission
+        if ($error = $this->checkWorkflowPermission($user, 'workflow.return-request')) {
+            return $error;
+        }
+
+        // Get Department A
         $deptA = Department::where('is_department_a', true)->first();
 
         if (!$deptA) {
             return response()->json([
                 'message' => 'Department A not found'
             ], 404);
-        }
-
-        $isManagerOfDeptA = $user->departments()
-            ->where('department_id', $deptA->id)
-            ->wherePivot('role', 'manager')
-            ->exists();
-
-        if (!$isManagerOfDeptA && $user->role !== 'admin') {
-            return response()->json([
-                'message' => 'Unauthorized. Only Department A managers can return requests.'
-            ], 403);
         }
 
         $validated = $request->validate([
@@ -401,24 +380,18 @@ class WorkflowController extends Controller
     {
         $user = $request->user();
 
-        // Check if user is manager in Department A
+        // Check permission
+        if ($error = $this->checkWorkflowPermission($user, 'workflow.evaluate')) {
+            return $error;
+        }
+
+        // Get Department A
         $deptA = Department::where('is_department_a', true)->first();
 
         if (!$deptA) {
             return response()->json([
                 'message' => 'Department A not found'
             ], 404);
-        }
-
-        $isManagerOfDeptA = $user->departments()
-            ->where('department_id', $deptA->id)
-            ->wherePivot('role', 'manager')
-            ->exists();
-
-        if (!$isManagerOfDeptA && $user->role !== 'admin') {
-            return response()->json([
-                'message' => 'Unauthorized. Only Department A managers can access evaluations.'
-            ], 403);
         }
 
         // Get active questions
@@ -446,24 +419,9 @@ class WorkflowController extends Controller
     {
         $user = $request->user();
 
-        // Check if user is manager in Department A
-        $deptA = Department::where('is_department_a', true)->first();
-
-        if (!$deptA) {
-            return response()->json([
-                'message' => 'Department A not found'
-            ], 404);
-        }
-
-        $isManagerOfDeptA = $user->departments()
-            ->where('department_id', $deptA->id)
-            ->wherePivot('role', 'manager')
-            ->exists();
-
-        if (!$isManagerOfDeptA && $user->role !== 'admin') {
-            return response()->json([
-                'message' => 'Unauthorized. Only Department A managers can submit evaluations.'
-            ], 403);
+        // Check permission
+        if ($error = $this->checkWorkflowPermission($user, 'workflow.evaluate')) {
+            return $error;
         }
 
         $validated = $request->validate([
