@@ -355,4 +355,113 @@ class DepartmentWorkflowController extends Controller
             'message' => 'Evaluation submitted successfully'
         ]);
     }
+
+    /**
+     * Accept idea for later implementation
+     */
+    public function acceptIdeaForLater($requestId, HttpRequest $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'comments' => 'nullable|string',
+        ]);
+
+        // Get departments where user is manager
+        $managedDepartments = $user->departments()
+            ->wherePivot('role', 'manager')
+            ->pluck('departments.id');
+
+        if ($managedDepartments->isEmpty()) {
+            return response()->json([
+                'message' => 'Only department managers can accept ideas'
+            ], 403);
+        }
+
+        $userRequest = Request::where('id', $requestId)
+            ->whereIn('current_department_id', $managedDepartments)
+            ->where('status', 'in_review')
+            ->whereNull('current_user_id')
+            ->firstOrFail();
+
+        $previousStatus = $userRequest->status;
+        $previousDepartment = $userRequest->current_department_id;
+
+        // Mark as accepted for later - keep in same department but mark differently
+        $userRequest->update([
+            'status' => 'pending', // Change status to pending for later review
+        ]);
+
+        // Create transition record
+        \App\Models\RequestTransition::create([
+            'request_id' => $userRequest->id,
+            'from_department_id' => $previousDepartment,
+            'to_department_id' => $previousDepartment,
+            'actioned_by' => $user->id,
+            'action' => 'accept_later',
+            'from_status' => $previousStatus,
+            'to_status' => 'pending',
+            'comments' => $validated['comments'] ?? 'Idea accepted for future implementation',
+        ]);
+
+        return response()->json([
+            'message' => 'Idea accepted for later implementation',
+            'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
+        ]);
+    }
+
+    /**
+     * Reject idea
+     */
+    public function rejectIdea($requestId, HttpRequest $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'comments' => 'required|string',
+        ]);
+
+        // Get departments where user is manager
+        $managedDepartments = $user->departments()
+            ->wherePivot('role', 'manager')
+            ->pluck('departments.id');
+
+        if ($managedDepartments->isEmpty()) {
+            return response()->json([
+                'message' => 'Only department managers can reject ideas'
+            ], 403);
+        }
+
+        $userRequest = Request::where('id', $requestId)
+            ->whereIn('current_department_id', $managedDepartments)
+            ->where('status', 'in_review')
+            ->whereNull('current_user_id')
+            ->firstOrFail();
+
+        $previousStatus = $userRequest->status;
+        $previousDepartment = $userRequest->current_department_id;
+
+        // Mark as rejected
+        $userRequest->update([
+            'status' => 'rejected',
+            'current_user_id' => null,
+        ]);
+
+        // Create transition record
+        \App\Models\RequestTransition::create([
+            'request_id' => $userRequest->id,
+            'from_department_id' => $previousDepartment,
+            'to_department_id' => null,
+            'actioned_by' => $user->id,
+            'action' => 'reject',
+            'from_status' => $previousStatus,
+            'to_status' => 'rejected',
+            'comments' => $validated['comments'],
+        ]);
+
+        return response()->json([
+            'message' => 'Idea rejected successfully',
+            'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
+        ]);
+    }
 }
