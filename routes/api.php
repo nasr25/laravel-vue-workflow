@@ -50,6 +50,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/department/requests/{requestId}/assign-employee', [DepartmentWorkflowController::class, 'assignToEmployee']);
     Route::post('/department/requests/{requestId}/return-to-manager', [DepartmentWorkflowController::class, 'returnToManager']);
     Route::post('/department/requests/{requestId}/return-to-dept-a', [DepartmentWorkflowController::class, 'returnToDepartmentA']);
+    Route::get('/department/requests/{requestId}/path-evaluation-questions', [DepartmentWorkflowController::class, 'getPathEvaluationQuestions']);
+    Route::post('/department/requests/{requestId}/path-evaluation', [DepartmentWorkflowController::class, 'submitPathEvaluation']);
 
     // Admin routes (Admin only)
     // Department Management
@@ -80,6 +82,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/admin/evaluation-questions/{id}', [AdminController::class, 'updateEvaluationQuestion']);
     Route::delete('/admin/evaluation-questions/{id}', [AdminController::class, 'deleteEvaluationQuestion']);
     Route::get('/admin/evaluation-weight-total', [AdminController::class, 'getEvaluationWeightTotal']);
+
+    // Path Evaluation Questions Management (Admin)
+    Route::get('/admin/path-evaluation-questions', [AdminController::class, 'getPathEvaluationQuestions']);
+    Route::post('/admin/path-evaluation-questions', [AdminController::class, 'createPathEvaluationQuestion']);
+    Route::put('/admin/path-evaluation-questions/{id}', [AdminController::class, 'updatePathEvaluationQuestion']);
+    Route::delete('/admin/path-evaluation-questions/{id}', [AdminController::class, 'deletePathEvaluationQuestion']);
 
     // Permission Management (Admin/Super Admin only)
     Route::prefix('permissions')->group(function () {

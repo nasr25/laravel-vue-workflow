@@ -1,0 +1,38 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class PathEvaluation extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'request_id',
+        'path_evaluation_question_id',
+        'evaluated_by',
+        'is_applied',
+        'notes'
+    ];
+
+    protected $casts = [
+        'is_applied' => 'boolean'
+    ];
+
+    public function request()
+    {
+        return $this->belongsTo(Request::class);
+    }
+
+    public function question()
+    {
+        return $this->belongsTo(PathEvaluationQuestion::class, 'path_evaluation_question_id');
+    }
+
+    public function evaluatedBy()
+    {
+        return $this->belongsTo(User::class, 'evaluated_by');
+    }
+}

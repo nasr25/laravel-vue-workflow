@@ -506,4 +506,94 @@ class AdminController extends Controller
             'remaining' => 100 - $totalWeight
         ]);
     }
+
+    // ============= PATH EVALUATION QUESTIONS MANAGEMENT =============
+
+    /**
+     * Get all path evaluation questions grouped by workflow path
+     */
+    public function getPathEvaluationQuestions(Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $questions = \App\Models\PathEvaluationQuestion::with('workflowPath')
+            ->orderBy('workflow_path_id')
+            ->orderBy('order')
+            ->get();
+
+        return response()->json([
+            'questions' => $questions
+        ]);
+    }
+
+    /**
+     * Create a new path evaluation question
+     */
+    public function createPathEvaluationQuestion(Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $validated = $request->validate([
+            'workflow_path_id' => 'required|exists:workflow_paths,id',
+            'question' => 'required|string|max:500',
+            'order' => 'nullable|integer|min:0',
+            'is_active' => 'nullable|boolean'
+        ]);
+
+        $question = \App\Models\PathEvaluationQuestion::create($validated);
+
+        return response()->json([
+            'message' => 'Path evaluation question created successfully',
+            'question' => $question->load('workflowPath')
+        ], 201);
+    }
+
+    /**
+     * Update a path evaluation question
+     */
+    public function updatePathEvaluationQuestion($id, Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $question = \App\Models\PathEvaluationQuestion::findOrFail($id);
+
+        $validated = $request->validate([
+            'workflow_path_id' => 'sometimes|required|exists:workflow_paths,id',
+            'question' => 'sometimes|required|string|max:500',
+            'order' => 'nullable|integer|min:0',
+            'is_active' => 'nullable|boolean'
+        ]);
+
+        $question->update($validated);
+
+        return response()->json([
+            'message' => 'Path evaluation question updated successfully',
+            'question' => $question->load('workflowPath')
+        ]);
+    }
+
+    /**
+     * Delete a path evaluation question
+     */
+    public function deletePathEvaluationQuestion($id, Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $question = \App\Models\PathEvaluationQuestion::findOrFail($id);
+
+        // Check if question has been used in evaluations
+        $evaluationCount = $question->evaluations()->count();
+
+        if ($evaluationCount > 0) {
+            return response()->json([
+                'message' => "Cannot delete question. It has been used in {$evaluationCount} evaluation(s). Consider deactivating it instead."
+            ], 400);
+        }
+
+        $question->delete();
+
+        return response()->json([
+            'message' => 'Path evaluation question deleted successfully'
+        ]);
+    }
 }

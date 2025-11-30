@@ -408,7 +408,7 @@ class WorkflowController extends Controller
         return response()->json([
             'questions' => $questions,
             'evaluations' => $evaluations,
-            'has_evaluated' => $evaluations->count() === $questions->count()
+            'has_evaluated' => $questions->count() > 0 && $evaluations->count() === $questions->count()
         ]);
     }
 

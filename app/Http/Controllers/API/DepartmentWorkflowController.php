@@ -263,4 +263,96 @@ class DepartmentWorkflowController extends Controller
             'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
         ]);
     }
+
+    /**
+     * Get path evaluation questions for a request
+     */
+    public function getPathEvaluationQuestions($requestId, HttpRequest $request)
+    {
+        $user = $request->user();
+
+        // Get departments where user is manager
+        $managedDepartments = $user->departments()
+            ->wherePivot('role', 'manager')
+            ->pluck('departments.id');
+
+        if ($managedDepartments->isEmpty()) {
+            return response()->json([
+                'message' => 'Only department managers can evaluate requests'
+            ], 403);
+        }
+
+        $userRequest = Request::where('id', $requestId)
+            ->whereIn('current_department_id', $managedDepartments)
+            ->with('workflowPath')
+            ->firstOrFail();
+
+        // Get evaluation questions for this workflow path
+        $questions = \App\Models\PathEvaluationQuestion::where('workflow_path_id', $userRequest->workflow_path_id)
+            ->where('is_active', true)
+            ->orderBy('order')
+            ->get();
+
+        // Get existing evaluations
+        $evaluations = \App\Models\PathEvaluation::where('request_id', $requestId)
+            ->with('question')
+            ->get()
+            ->keyBy('path_evaluation_question_id');
+
+        return response()->json([
+            'questions' => $questions,
+            'evaluations' => $evaluations,
+            'has_evaluated' => $questions->count() > 0 && $evaluations->count() === $questions->count()
+        ]);
+    }
+
+    /**
+     * Submit path evaluation for a request
+     */
+    public function submitPathEvaluation($requestId, HttpRequest $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'evaluations' => 'required|array',
+            'evaluations.*.question_id' => 'required|exists:path_evaluation_questions,id',
+            'evaluations.*.is_applied' => 'required|boolean',
+            'evaluations.*.notes' => 'nullable|string|max:1000'
+        ]);
+
+        // Get departments where user is manager
+        $managedDepartments = $user->departments()
+            ->wherePivot('role', 'manager')
+            ->pluck('departments.id');
+
+        if ($managedDepartments->isEmpty()) {
+            return response()->json([
+                'message' => 'Only department managers can evaluate requests'
+            ], 403);
+        }
+
+        $userRequest = Request::where('id', $requestId)
+            ->whereIn('current_department_id', $managedDepartments)
+            ->with('workflowPath')
+            ->firstOrFail();
+
+        // Save evaluations
+        foreach ($validated['evaluations'] as $evaluation) {
+            \App\Models\PathEvaluation::updateOrCreate(
+                [
+                    'request_id' => $requestId,
+                    'path_evaluation_question_id' => $evaluation['question_id']
+                ],
+                [
+                    'evaluated_by' => $user->id,
+                    'is_applied' => $evaluation['is_applied'],
+                    'notes' => $evaluation['notes'] ?? null
+                ]
+            );
+        }
+
+        return response()->json([
+            'message' => 'Evaluation submitted successfully'
+        ]);
+    }
 }
