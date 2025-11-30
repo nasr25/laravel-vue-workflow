@@ -453,7 +453,7 @@ class DepartmentWorkflowController extends Controller
             'from_department_id' => $previousDepartment,
             'to_department_id' => null,
             'actioned_by' => $user->id,
-            'action' => 'reject',
+            'action' => 'reject_idea',
             'from_status' => $previousStatus,
             'to_status' => 'rejected',
             'comments' => $validated['comments'],
