@@ -19,11 +19,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/user', [AuthController::class, 'user']);
     Route::get('/user', [AuthController::class, 'user']); // Keep for compatibility
 
+    // Departments (Public for form)
+    Route::get('/departments', [RequestController::class, 'getDepartments']);
+
     // Request routes
     Route::get('/requests', [RequestController::class, 'index'])->middleware('permission:request.view-own');
     Route::post('/requests', [RequestController::class, 'store'])->middleware('permission:request.create');
     Route::get('/requests/{id}', [RequestController::class, 'show'])->middleware('permission:request.view-own');
     Route::put('/requests/{id}', [RequestController::class, 'update'])->middleware('permission:request.edit-own');
+    Route::post('/requests/{id}', [RequestController::class, 'update'])->middleware('permission:request.edit-own');
     Route::delete('/requests/{id}', [RequestController::class, 'destroy'])->middleware('permission:request.delete-own');
     Route::post('/requests/{id}/submit', [RequestController::class, 'submit'])->middleware('permission:request.submit');
     Route::post('/requests/{id}/attachments', [RequestController::class, 'uploadAttachment'])->middleware('permission:request.edit-own');
