@@ -64,6 +64,11 @@ class Request extends Model
         return $this->hasMany(RequestEvaluation::class);
     }
 
+    public function pathEvaluations()
+    {
+        return $this->hasMany(PathEvaluation::class);
+    }
+
     public function getCurrentStep()
     {
         if (!$this->workflow_path_id || !$this->current_department_id) {

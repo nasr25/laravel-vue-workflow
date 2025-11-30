@@ -35,6 +35,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Workflow routes (Department A managers)
     Route::get('/workflow/pending-requests', [WorkflowController::class, 'getPendingRequests']);
+    Route::get('/workflow/all-requests', [WorkflowController::class, 'getAllRequests']);
+    Route::get('/workflow/requests/{requestId}/detail', [WorkflowController::class, 'getRequestDetail']);
     Route::get('/workflow/paths', [WorkflowController::class, 'getWorkflowPaths']);
     Route::post('/workflow/requests/{requestId}/assign-path', [WorkflowController::class, 'assignPath']);
     Route::post('/workflow/requests/{requestId}/reject', [WorkflowController::class, 'rejectRequest']);

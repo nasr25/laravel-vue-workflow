@@ -59,6 +59,77 @@ class WorkflowController extends Controller
     }
 
     /**
+     * Get all requests for Department A managers (all statuses)
+     */
+    public function getAllRequests(HttpRequest $request)
+    {
+        $user = $request->user();
+
+        // Check permission
+        if (!$user->hasPermissionTo('workflow.view-pending')) {
+            return response()->json([
+                'message' => 'Unauthorized. You do not have permission to view requests.'
+            ], 403);
+        }
+
+        // Get all requests with their latest status and current location
+        $requests = Request::with([
+            'user',
+            'currentDepartment',
+            'currentAssignee',
+            'workflowPath.steps.department',
+            'transitions' => function($query) {
+                $query->latest()->limit(1);
+            },
+            'transitions.actionedBy',
+            'transitions.toDepartment'
+        ])
+        ->orderBy('updated_at', 'desc')
+        ->get();
+
+        return response()->json([
+            'requests' => $requests
+        ]);
+    }
+
+    /**
+     * Get request details with full history
+     */
+    public function getRequestDetail($requestId, HttpRequest $request)
+    {
+        $user = $request->user();
+
+        // Check permission
+        if (!$user->hasPermissionTo('workflow.view-pending')) {
+            return response()->json([
+                'message' => 'Unauthorized. You do not have permission to view request details.'
+            ], 403);
+        }
+
+        $requestDetail = Request::with([
+            'user',
+            'currentDepartment',
+            'currentAssignee',
+            'workflowPath.steps.department',
+            'attachments',
+            'transitions.actionedBy',
+            'transitions.toDepartment',
+            'transitions.fromDepartment',
+            'transitions.toUser',
+            'transitions.fromUser',
+            'evaluations.question',
+            'evaluations.evaluatedBy',
+            'pathEvaluations.question',
+            'pathEvaluations.evaluatedBy'
+        ])
+        ->findOrFail($requestId);
+
+        return response()->json([
+            'request' => $requestDetail
+        ]);
+    }
+
+    /**
      * Get available workflow paths
      */
     public function getWorkflowPaths(HttpRequest $request)
