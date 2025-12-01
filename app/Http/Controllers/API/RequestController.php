@@ -42,6 +42,8 @@ class RequestController extends Controller
             'department' => 'nullable|string',
             'benefits' => 'nullable|string',
             'status' => 'nullable|string|in:draft,pending',
+            'attachments' => 'nullable|array|max:5',
+            'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png|max:10240', // Max 10MB per file
         ]);
 
         // Determine initial department and status
@@ -127,6 +129,8 @@ class RequestController extends Controller
             'benefits' => 'nullable|string',
             'additional_details' => 'sometimes|nullable|string',
             'status' => 'nullable|string|in:draft,pending',
+            'attachments' => 'nullable|array|max:5',
+            'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png|max:10240', // Max 10MB per file
         ]);
 
         // Determine if status should change
@@ -158,6 +162,19 @@ class RequestController extends Controller
 
         // Handle file attachments
         if ($request->hasFile('attachments')) {
+            $existingAttachmentsCount = $userRequest->attachments()->count();
+            $newAttachmentsCount = count($request->file('attachments'));
+
+            // Check if total attachments would exceed limit
+            if ($existingAttachmentsCount + $newAttachmentsCount > 5) {
+                return response()->json([
+                    'message' => 'Cannot add files. Maximum 5 files allowed per request.',
+                    'errors' => [
+                        'attachments' => ['Maximum 5 files allowed per request']
+                    ]
+                ], 422);
+            }
+
             foreach ($request->file('attachments') as $file) {
                 $path = $file->store('attachments', 'public');
 
