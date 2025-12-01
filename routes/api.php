@@ -22,6 +22,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Departments (Public for form)
     Route::get('/departments', [RequestController::class, 'getDepartments']);
 
+    // Dashboard statistics
+    Route::get('/dashboard/statistics', [RequestController::class, 'getStatistics']);
+
     // Request routes
     Route::get('/requests', [RequestController::class, 'index'])->middleware('permission:request.view-own');
     Route::post('/requests', [RequestController::class, 'store'])->middleware('permission:request.create');

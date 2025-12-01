@@ -292,4 +292,62 @@ class RequestController extends Controller
             'message' => 'Attachment deleted successfully'
         ]);
     }
+
+    /**
+     * Get dashboard statistics for the authenticated user
+     */
+    public function getStatistics(HttpRequest $request)
+    {
+        $user = $request->user();
+
+        // Base query - different for each role
+        $baseQuery = null;
+
+        if ($user->role === 'admin') {
+            // Admin sees all requests
+            $baseQuery = Request::query();
+        } elseif ($user->role === 'manager') {
+            // Manager sees:
+            // 1. Requests in Department A (pending assignment)
+            // 2. Requests in their managed departments
+            $managedDepartments = $user->departments()
+                ->wherePivot('role', 'manager')
+                ->pluck('departments.id');
+
+            $deptA = \App\Models\Department::where('is_department_a', true)->first();
+            $departmentIds = $managedDepartments->toArray();
+            if ($deptA) {
+                $departmentIds[] = $deptA->id;
+            }
+
+            $baseQuery = Request::whereIn('current_department_id', $departmentIds);
+        } elseif ($user->role === 'employee') {
+            // Employee sees:
+            // 1. Requests assigned to them
+            // 2. Requests in their departments
+            $userDepartments = $user->departments()->pluck('departments.id');
+
+            $baseQuery = Request::where(function($query) use ($user, $userDepartments) {
+                $query->where('current_user_id', $user->id)
+                      ->orWhereIn('current_department_id', $userDepartments);
+            });
+        } else {
+            // Regular user sees only their own requests
+            $baseQuery = Request::where('user_id', $user->id);
+        }
+
+        // Calculate statistics
+        $stats = [
+            'totalRequests' => (clone $baseQuery)->count(),
+            'pendingRequests' => (clone $baseQuery)->whereIn('status', ['pending', 'in_review'])->count(),
+            'approvedRequests' => (clone $baseQuery)->where('status', 'approved')->count(),
+            'rejectedRequests' => (clone $baseQuery)->where('status', 'rejected')->count(),
+            'draftRequests' => (clone $baseQuery)->where('status', 'draft')->count(),
+            'completedRequests' => (clone $baseQuery)->where('status', 'completed')->count(),
+        ];
+
+        return response()->json([
+            'stats' => $stats
+        ]);
+    }
 }
