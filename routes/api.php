@@ -8,10 +8,14 @@ use App\Http\Controllers\API\WorkflowController;
 use App\Http\Controllers\API\DepartmentWorkflowController;
 use App\Http\Controllers\API\AdminController;
 use App\Http\Controllers\API\PermissionManagementController;
+use App\Http\Controllers\API\SettingsController;
 
 // Public routes
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login', [AuthController::class, 'login']);
+
+// Public settings (no authentication required)
+Route::get('/settings/public', [SettingsController::class, 'getPublicSettings']);
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -117,6 +121,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/users/give-permission', [PermissionManagementController::class, 'givePermissionToUser']);
         Route::post('/users/revoke-permission', [PermissionManagementController::class, 'revokePermissionFromUser']);
         Route::post('/users/{userId}/check', [PermissionManagementController::class, 'checkPermission']);
+    });
+
+    // Settings Management (Admin only)
+    Route::prefix('settings')->group(function () {
+        Route::get('/', [SettingsController::class, 'index']);
+        Route::get('/{key}', [SettingsController::class, 'show']);
+        Route::post('/', [SettingsController::class, 'store']);
+        Route::put('/bulk', [SettingsController::class, 'updateBulk']);
+        Route::post('/upload-image', [SettingsController::class, 'uploadImage']);
+        Route::delete('/{key}', [SettingsController::class, 'destroy']);
     });
 
     // Test route

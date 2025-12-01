@@ -338,6 +338,9 @@ class DatabaseSeeder extends Seeder
         // Call the Roles and Permissions Seeder
         $this->call(RolesAndPermissionsSeeder::class);
 
+        // Call the Settings Seeder
+        $this->call(SettingsSeeder::class);
+
         $this->command->info('Database seeded successfully!');
         $this->command->info('');
         $this->command->info('Login Credentials:');
