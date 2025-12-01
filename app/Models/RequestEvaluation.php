@@ -31,4 +31,9 @@ class RequestEvaluation extends Model
     {
         return $this->belongsTo(User::class, 'evaluated_by');
     }
+
+    public function evaluatedBy()
+    {
+        return $this->belongsTo(User::class, 'evaluated_by');
+    }
 }
