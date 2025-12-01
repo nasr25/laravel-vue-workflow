@@ -124,7 +124,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Settings Management (Admin only)
-    Route::prefix('settings')->group(function () {
+    Route::prefix('settings')->middleware('admin')->group(function () {
         Route::get('/', [SettingsController::class, 'index']);
         Route::get('/{key}', [SettingsController::class, 'show']);
         Route::post('/', [SettingsController::class, 'store']);
