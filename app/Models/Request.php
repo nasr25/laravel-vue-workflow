@@ -22,11 +22,13 @@ class Request extends Model
         'additional_details',
         'submitted_at',
         'completed_at',
+        'expected_execution_date',
     ];
 
     protected $casts = [
         'submitted_at' => 'datetime',
         'completed_at' => 'datetime',
+        'expected_execution_date' => 'date',
     ];
 
     public function user()

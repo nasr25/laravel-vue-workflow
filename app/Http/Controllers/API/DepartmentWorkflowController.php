@@ -364,6 +364,7 @@ class DepartmentWorkflowController extends Controller
         $user = $request->user();
 
         $validated = $request->validate([
+            'expected_execution_date' => 'required|date|after_or_equal:today',
             'comments' => 'nullable|string',
         ]);
 
@@ -390,6 +391,7 @@ class DepartmentWorkflowController extends Controller
         // Mark as accepted for later - keep in same department but mark differently
         $userRequest->update([
             'status' => 'pending', // Change status to pending for later review
+            'expected_execution_date' => $validated['expected_execution_date'],
         ]);
 
         // Create transition record
