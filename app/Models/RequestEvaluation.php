@@ -13,8 +13,12 @@ class RequestEvaluation extends Model
         'request_id',
         'evaluation_question_id',
         'evaluated_by',
-        'score',
+        'is_applied',
         'notes',
+    ];
+
+    protected $casts = [
+        'is_applied' => 'boolean'
     ];
 
     public function request()

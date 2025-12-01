@@ -498,7 +498,7 @@ class WorkflowController extends Controller
         $validated = $request->validate([
             'evaluations' => 'required|array',
             'evaluations.*.question_id' => 'required|exists:evaluation_questions,id',
-            'evaluations.*.answer' => 'required|integer|min:1|max:10',
+            'evaluations.*.is_applied' => 'required|boolean',
             'evaluations.*.notes' => 'nullable|string',
         ]);
 
@@ -509,26 +509,17 @@ class WorkflowController extends Controller
 
         // Create new evaluations
         foreach ($validated['evaluations'] as $evaluation) {
-            $question = \App\Models\EvaluationQuestion::findOrFail($evaluation['question_id']);
-
-            // Calculate score: (answer/10) * weight
-            $score = ($evaluation['answer'] / 10) * $question->weight;
-
             \App\Models\RequestEvaluation::create([
                 'request_id' => $requestId,
                 'evaluation_question_id' => $evaluation['question_id'],
                 'evaluated_by' => $user->id,
-                'score' => $score,
+                'is_applied' => $evaluation['is_applied'],
                 'notes' => $evaluation['notes'] ?? null,
             ]);
         }
 
-        // Calculate total score
-        $totalScore = \App\Models\RequestEvaluation::where('request_id', $requestId)->sum('score');
-
         return response()->json([
-            'message' => 'Evaluation submitted successfully',
-            'total_score' => round($totalScore, 2)
+            'message' => 'Evaluation submitted successfully'
         ]);
     }
 }
