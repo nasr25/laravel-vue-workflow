@@ -27,6 +27,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Departments (Public for form)
     Route::get('/departments', [RequestController::class, 'getDepartments']);
 
+    // Idea Types (Public for form - active types only)
+    Route::get('/idea-types', [App\Http\Controllers\API\IdeaTypeController::class, 'index']);
+
     // Dashboard statistics
     Route::get('/dashboard/statistics', [RequestController::class, 'getStatistics']);
 
@@ -157,6 +160,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{id}', [EmailTemplateController::class, 'update']);
         Route::post('/{id}/toggle-status', [EmailTemplateController::class, 'toggleStatus']);
         Route::post('/{id}/send-test', [EmailTemplateController::class, 'sendTest']);
+    });
+
+    // Idea Types Management (Admin only)
+    Route::prefix('admin/idea-types')->middleware('admin')->group(function () {
+        Route::get('/', [App\Http\Controllers\API\IdeaTypeController::class, 'index']);
+        Route::post('/', [App\Http\Controllers\API\IdeaTypeController::class, 'store']);
+        Route::get('/{ideaType}', [App\Http\Controllers\API\IdeaTypeController::class, 'show']);
+        Route::put('/{ideaType}', [App\Http\Controllers\API\IdeaTypeController::class, 'update']);
+        Route::delete('/{ideaType}', [App\Http\Controllers\API\IdeaTypeController::class, 'destroy']);
+        Route::post('/{ideaType}/toggle-status', [App\Http\Controllers\API\IdeaTypeController::class, 'toggleStatus']);
     });
 
     // Test route

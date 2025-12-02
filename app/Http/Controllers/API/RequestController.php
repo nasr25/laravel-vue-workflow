@@ -32,7 +32,7 @@ class RequestController extends Controller
         $user = $request->user();
 
         $requests = Request::where('user_id', $user->id)
-            ->with(['currentDepartment', 'workflowPath', 'attachments'])
+            ->with(['ideaType', 'department', 'currentDepartment', 'workflowPath', 'attachments'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -46,8 +46,8 @@ class RequestController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:200',
             'description' => 'required|string|min:25',
-            'idea_type' => 'nullable|string|in:x,y,z',
-            'department' => 'nullable|string',
+            'idea_type' => 'required|string', // Can be idea type ID or old format
+            'department' => 'required|string', // Can be department ID or "unknown"
             'benefits' => 'nullable|string',
             'status' => 'nullable|string|in:draft,pending',
             'attachments' => 'nullable|array|max:5',
@@ -56,22 +56,31 @@ class RequestController extends Controller
 
         // Determine initial department and status
         $status = $validated['status'] ?? 'draft';
-        $departmentId = null;
+        $currentDepartmentId = null;
+
+        // Handle department selection - can be department ID or "unknown"
+        $selectedDepartmentId = null;
+        if ($validated['department'] !== 'unknown') {
+            $selectedDepartmentId = (int) $validated['department'];
+        }
 
         // If submitting directly (not draft), assign to Department A
         if ($status === 'pending') {
             $departmentA = \App\Models\Department::where('is_department_a', true)->first();
             if ($departmentA) {
-                $departmentId = $departmentA->id;
+                $currentDepartmentId = $departmentA->id;
             }
         }
 
         $userRequest = Request::create([
             'title' => $validated['title'],
             'description' => $validated['description'],
+            'idea_type_id' => (int) $validated['idea_type'], // Store idea type ID
+            'department_id' => $selectedDepartmentId, // Store selected department
+            'benefits' => $validated['benefits'] ?? null,
             'user_id' => $request->user()->id,
             'status' => $status,
-            'current_department_id' => $departmentId,
+            'current_department_id' => $currentDepartmentId,
             'submitted_at' => $status === 'pending' ? now() : null,
         ]);
 
@@ -92,10 +101,10 @@ class RequestController extends Controller
         }
 
         // Create transition if submitted
-        if ($status === 'pending' && $departmentId) {
+        if ($status === 'pending' && $currentDepartmentId) {
             \App\Models\RequestTransition::create([
                 'request_id' => $userRequest->id,
-                'to_department_id' => $departmentId,
+                'to_department_id' => $currentDepartmentId,
                 'actioned_by' => $request->user()->id,
                 'action' => 'submit',
                 'from_status' => 'draft',
@@ -115,7 +124,7 @@ class RequestController extends Controller
 
         return response()->json([
             'message' => $status === 'pending' ? 'Idea submitted successfully' : 'Draft saved successfully',
-            'request' => $userRequest->load(['currentDepartment', 'workflowPath', 'attachments'])
+            'request' => $userRequest->load(['ideaType', 'department', 'currentDepartment', 'workflowPath', 'attachments'])
         ], 201);
     }
 
@@ -123,7 +132,7 @@ class RequestController extends Controller
     {
         $userRequest = Request::where('id', $id)
             ->where('user_id', $request->user()->id)
-            ->with(['currentDepartment', 'workflowPath', 'attachments', 'transitions.actionedBy', 'transitions.toDepartment'])
+            ->with(['ideaType', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'transitions.actionedBy', 'transitions.toDepartment'])
             ->firstOrFail();
 
         return response()->json([
