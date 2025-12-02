@@ -6,10 +6,18 @@ use App\Http\Controllers\Controller;
 use App\Models\Request;
 use App\Models\WorkflowPath;
 use App\Models\Department;
+use App\Services\NotificationService;
 use Illuminate\Http\Request as HttpRequest;
 
 class WorkflowController extends Controller
 {
+    protected $notificationService;
+
+    public function __construct(NotificationService $notificationService)
+    {
+        $this->notificationService = $notificationService;
+    }
+
     /**
      * Check if user has workflow permission
      */
@@ -204,6 +212,15 @@ class WorkflowController extends Controller
             'comments' => $validated['comments'] ?? "Assigned to workflow path: {$workflowPath->name}",
         ]);
 
+        // Send notifications to all stakeholders
+        $this->notificationService->notifyRequestStakeholders(
+            $userRequest->fresh(['user', 'currentDepartment']),
+            NotificationService::TYPE_REQUEST_ASSIGNED,
+            'Request Assigned to Workflow Path',
+            "Request '{$userRequest->title}' has been assigned to the workflow path '{$workflowPath->name}' and moved to {$firstStep->department->name}.",
+            ['workflow_path' => $workflowPath->name, 'department' => $firstStep->department->name]
+        );
+
         return response()->json([
             'message' => 'Request assigned to workflow path successfully',
             'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
@@ -259,6 +276,15 @@ class WorkflowController extends Controller
             'comments' => $validated['rejection_reason'],
         ]);
 
+        // Send notifications to all stakeholders
+        $this->notificationService->notifyRequestStakeholders(
+            $userRequest->fresh(['user', 'currentDepartment']),
+            NotificationService::TYPE_REQUEST_REJECTED,
+            'Request Rejected',
+            "Request '{$userRequest->title}' has been rejected. Reason: {$validated['rejection_reason']}",
+            ['rejection_reason' => $validated['rejection_reason']]
+        );
+
         return response()->json([
             'message' => 'Request rejected successfully',
             'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
@@ -313,6 +339,16 @@ class WorkflowController extends Controller
             'comments' => $validated['comments'],
         ]);
 
+        // Send notifications to request creator
+        $this->notificationService->notify(
+            $userRequest->user,
+            NotificationService::TYPE_REQUEST_STATUS_CHANGED,
+            'More Details Requested',
+            "More details are needed for your request '{$userRequest->title}'. Please review and resubmit. Comments: {$validated['comments']}",
+            $userRequest->fresh(['user', 'currentDepartment']),
+            ['comments' => $validated['comments']]
+        );
+
         return response()->json([
             'message' => 'More details requested from user',
             'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
@@ -366,6 +402,15 @@ class WorkflowController extends Controller
             'to_status' => 'completed',
             'comments' => $validated['comments'] ?? 'Request completed and approved',
         ]);
+
+        // Send notifications to all stakeholders
+        $this->notificationService->notifyRequestStakeholders(
+            $userRequest->fresh(['user', 'currentDepartment']),
+            NotificationService::TYPE_REQUEST_COMPLETED,
+            'Request Completed',
+            "Request '{$userRequest->title}' has been completed and approved!",
+            ['completion_comments' => $validated['comments'] ?? 'Request completed and approved']
+        );
 
         return response()->json([
             'message' => 'Request completed successfully',
@@ -437,6 +482,16 @@ class WorkflowController extends Controller
             'to_status' => 'in_review',
             'comments' => $validated['comments'],
         ]);
+
+        // Send notifications to all stakeholders
+        $previousDepartment = Department::find($previousDepartmentId);
+        $this->notificationService->notifyRequestStakeholders(
+            $userRequest->fresh(['user', 'currentDepartment']),
+            NotificationService::TYPE_REQUEST_STATUS_CHANGED,
+            'Request Returned for Revision',
+            "Request '{$userRequest->title}' has been returned to {$previousDepartment->name} for revision. Comments: {$validated['comments']}",
+            ['previous_department' => $previousDepartment->name, 'comments' => $validated['comments']]
+        );
 
         return response()->json([
             'message' => 'Request returned to previous department for revision',

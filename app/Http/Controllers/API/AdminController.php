@@ -5,12 +5,19 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Department;
+use App\Services\ExternalUserLookupService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
+    protected $userLookupService;
+
+    public function __construct(ExternalUserLookupService $userLookupService)
+    {
+        $this->userLookupService = $userLookupService;
+    }
     /**
      * Check if user is admin
      */
@@ -594,6 +601,50 @@ class AdminController extends Controller
 
         return response()->json([
             'message' => 'Path evaluation question deleted successfully'
+        ]);
+    }
+
+    // ============= EXTERNAL USER LOOKUP =============
+
+    /**
+     * Search for users in external API
+     */
+    public function lookupExternalUser(Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $validated = $request->validate([
+            'search' => 'required|string|min:1',
+        ]);
+
+        // Check if external API is configured
+        if (!$this->userLookupService->isConfigured()) {
+            return response()->json([
+                'message' => 'External user lookup API is not configured',
+                'configured' => false,
+                'users' => []
+            ]);
+        }
+
+        // Perform the search
+        $users = $this->userLookupService->search($validated['search']);
+
+        return response()->json([
+            'configured' => true,
+            'users' => $users
+        ]);
+    }
+
+    /**
+     * Get external user lookup configuration status
+     */
+    public function getExternalUserLookupConfig(Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        return response()->json([
+            'configured' => $this->userLookupService->isConfigured(),
+            'api_url' => config('services.user_lookup.url', env('USER_LOOKUP_API_URL'))
         ]);
     }
 }

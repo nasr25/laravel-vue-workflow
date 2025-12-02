@@ -6,10 +6,18 @@ use App\Http\Controllers\Controller;
 use App\Models\Request;
 use App\Models\Department;
 use App\Models\User;
+use App\Services\NotificationService;
 use Illuminate\Http\Request as HttpRequest;
 
 class DepartmentWorkflowController extends Controller
 {
+    protected $notificationService;
+
+    public function __construct(NotificationService $notificationService)
+    {
+        $this->notificationService = $notificationService;
+    }
+
     /**
      * Get requests assigned to the current department
      */
@@ -148,6 +156,25 @@ class DepartmentWorkflowController extends Controller
             'comments' => $validated['comments'] ?? "Assigned to {$employee->name}",
         ]);
 
+        // Send notifications - notify the assigned employee and all stakeholders
+        $this->notificationService->notify(
+            $employee,
+            NotificationService::TYPE_REQUEST_ASSIGNED,
+            'Request Assigned to You',
+            "You have been assigned to work on request '{$userRequest->title}'.",
+            $userRequest->fresh(['user', 'currentDepartment']),
+            ['assigned_by' => $user->name]
+        );
+
+        // Also notify other stakeholders
+        $this->notificationService->notifyRequestStakeholders(
+            $userRequest->fresh(['user', 'currentDepartment']),
+            NotificationService::TYPE_REQUEST_STATUS_CHANGED,
+            'Request Assigned to Employee',
+            "Request '{$userRequest->title}' has been assigned to {$employee->name} for review.",
+            ['assigned_to' => $employee->name]
+        );
+
         return response()->json([
             'message' => 'Request assigned to employee successfully',
             'request' => $userRequest->load(['currentDepartment', 'currentAssignee', 'workflowPath'])
@@ -193,6 +220,15 @@ class DepartmentWorkflowController extends Controller
             'to_status' => 'in_review',
             'comments' => $validated['comments'],
         ]);
+
+        // Send notifications to department managers and stakeholders
+        $this->notificationService->notifyRequestStakeholders(
+            $userRequest->fresh(['user', 'currentDepartment']),
+            NotificationService::TYPE_REQUEST_STATUS_CHANGED,
+            'Request Returned to Manager',
+            "Request '{$userRequest->title}' has been returned to the department manager by {$user->name}. Comments: {$validated['comments']}",
+            ['returned_by' => $user->name, 'comments' => $validated['comments']]
+        );
 
         return response()->json([
             'message' => 'Request returned to department manager for review',
@@ -257,6 +293,15 @@ class DepartmentWorkflowController extends Controller
             'to_status' => 'in_review',
             'comments' => $validated['comments'],
         ]);
+
+        // Send notifications to all stakeholders
+        $this->notificationService->notifyRequestStakeholders(
+            $userRequest->fresh(['user', 'currentDepartment']),
+            NotificationService::TYPE_REQUEST_STATUS_CHANGED,
+            'Request Returned to Department A',
+            "Request '{$userRequest->title}' has been returned to Department A for validation. Comments: {$validated['comments']}",
+            ['returned_by' => $user->name, 'comments' => $validated['comments']]
+        );
 
         return response()->json([
             'message' => 'Request returned to Department A for validation',
@@ -406,6 +451,15 @@ class DepartmentWorkflowController extends Controller
             'comments' => $validated['comments'] ?? 'Idea accepted for future implementation',
         ]);
 
+        // Send notifications to all stakeholders
+        $this->notificationService->notifyRequestStakeholders(
+            $userRequest->fresh(['user', 'currentDepartment']),
+            NotificationService::TYPE_REQUEST_APPROVED,
+            'Idea Accepted for Later Implementation',
+            "Request '{$userRequest->title}' has been accepted for future implementation. Expected execution date: {$validated['expected_execution_date']}",
+            ['expected_execution_date' => $validated['expected_execution_date'], 'comments' => $validated['comments'] ?? '']
+        );
+
         return response()->json([
             'message' => 'Idea accepted for later implementation',
             'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
@@ -460,6 +514,15 @@ class DepartmentWorkflowController extends Controller
             'to_status' => 'rejected',
             'comments' => $validated['comments'],
         ]);
+
+        // Send notifications to all stakeholders
+        $this->notificationService->notifyRequestStakeholders(
+            $userRequest->fresh(['user', 'currentDepartment']),
+            NotificationService::TYPE_REQUEST_REJECTED,
+            'Idea Rejected',
+            "Request '{$userRequest->title}' has been rejected. Comments: {$validated['comments']}",
+            ['rejected_by' => $user->name, 'comments' => $validated['comments']]
+        );
 
         return response()->json([
             'message' => 'Idea rejected successfully',

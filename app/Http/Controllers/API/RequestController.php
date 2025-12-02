@@ -5,11 +5,19 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Request;
 use App\Models\RequestAttachment;
+use App\Services\NotificationService;
 use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\Storage;
 
 class RequestController extends Controller
 {
+    protected $notificationService;
+
+    public function __construct(NotificationService $notificationService)
+    {
+        $this->notificationService = $notificationService;
+    }
+
     public function getDepartments()
     {
         $departments = \App\Models\Department::select('id', 'name')->get();
@@ -94,6 +102,15 @@ class RequestController extends Controller
                 'to_status' => 'pending',
                 'comments' => 'Request submitted for review',
             ]);
+
+            // Send notifications to all stakeholders
+            $this->notificationService->notifyRequestStakeholders(
+                $userRequest->fresh(['user', 'currentDepartment']),
+                NotificationService::TYPE_REQUEST_CREATED,
+                'New Request Submitted',
+                "A new request '{$userRequest->title}' has been submitted and is pending review.",
+                ['action' => 'submitted']
+            );
         }
 
         return response()->json([
@@ -145,6 +162,8 @@ class RequestController extends Controller
                 $validated['current_department_id'] = $departmentId;
                 $validated['submitted_at'] = now();
 
+                $previousStatus = $userRequest->status;
+
                 // Create transition
                 \App\Models\RequestTransition::create([
                     'request_id' => $userRequest->id,
@@ -155,10 +174,21 @@ class RequestController extends Controller
                     'to_status' => 'pending',
                     'comments' => 'Request resubmitted for review',
                 ]);
-            }
-        }
 
-        $userRequest->update($validated);
+                $userRequest->update($validated);
+
+                // Send notifications to all stakeholders
+                $this->notificationService->notifyRequestStakeholders(
+                    $userRequest->fresh(['user', 'currentDepartment']),
+                    NotificationService::TYPE_REQUEST_STATUS_CHANGED,
+                    'Request Resubmitted',
+                    "Request '{$userRequest->title}' has been resubmitted for review.",
+                    ['previous_status' => $previousStatus, 'action' => 'resubmitted']
+                );
+            }
+        } else {
+            $userRequest->update($validated);
+        }
 
         // Handle file attachments
         if ($request->hasFile('attachments')) {
@@ -242,6 +272,15 @@ class RequestController extends Controller
             'comments' => 'Request submitted for review',
         ]);
 
+        // Send notifications to all stakeholders
+        $this->notificationService->notifyRequestStakeholders(
+            $userRequest->fresh(['user', 'currentDepartment']),
+            NotificationService::TYPE_REQUEST_CREATED,
+            'New Request Submitted',
+            "A new request '{$userRequest->title}' has been submitted and is pending review.",
+            ['action' => 'submitted']
+        );
+
         return response()->json([
             'message' => 'Request submitted successfully',
             'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
@@ -307,20 +346,20 @@ class RequestController extends Controller
             // Admin sees all requests
             $baseQuery = Request::query();
         } elseif ($user->role === 'manager') {
-            // Manager sees:
-            // 1. Requests in Department A (pending assignment)
-            // 2. Requests in their managed departments
+            // Check if manager is in Department A
             $managedDepartments = $user->departments()
                 ->wherePivot('role', 'manager')
                 ->pluck('departments.id');
 
             $deptA = \App\Models\Department::where('is_department_a', true)->first();
-            $departmentIds = $managedDepartments->toArray();
-            if ($deptA) {
-                $departmentIds[] = $deptA->id;
-            }
 
-            $baseQuery = Request::whereIn('current_department_id', $departmentIds);
+            // If user manages Department A, they see ALL requests
+            if ($deptA && $managedDepartments->contains($deptA->id)) {
+                $baseQuery = Request::query();
+            } else {
+                // Other managers see only requests in their departments
+                $baseQuery = Request::whereIn('current_department_id', $managedDepartments);
+            }
         } elseif ($user->role === 'employee') {
             // Employee sees:
             // 1. Requests assigned to them

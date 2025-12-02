@@ -9,6 +9,7 @@ use App\Http\Controllers\API\DepartmentWorkflowController;
 use App\Http\Controllers\API\AdminController;
 use App\Http\Controllers\API\PermissionManagementController;
 use App\Http\Controllers\API\SettingsController;
+use App\Http\Controllers\API\EmailTemplateController;
 
 // Public routes
 Route::post('/auth/register', [AuthController::class, 'register']);
@@ -28,6 +29,17 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Dashboard statistics
     Route::get('/dashboard/statistics', [RequestController::class, 'getStatistics']);
+
+    // User Settings
+    Route::get('/user/settings', [App\Http\Controllers\API\UserSettingsController::class, 'getSettings']);
+    Route::post('/user/settings', [App\Http\Controllers\API\UserSettingsController::class, 'saveSettings']);
+
+    // Notifications
+    Route::get('/notifications', [App\Http\Controllers\API\NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [App\Http\Controllers\API\NotificationController::class, 'getUnreadCount']);
+    Route::post('/notifications/{id}/read', [App\Http\Controllers\API\NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/read-all', [App\Http\Controllers\API\NotificationController::class, 'markAllAsRead']);
+    Route::delete('/notifications/{id}', [App\Http\Controllers\API\NotificationController::class, 'destroy']);
 
     // Request routes
     Route::get('/requests', [RequestController::class, 'index'])->middleware('permission:request.view-own');
@@ -87,6 +99,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admin/requests', [AdminController::class, 'getAllRequests']);
     Route::get('/admin/requests/{id}', [AdminController::class, 'getRequestDetail']);
 
+    // External User Lookup (Admin)
+    Route::get('/admin/lookup-external-user', [AdminController::class, 'lookupExternalUser']);
+    Route::get('/admin/external-user-lookup-config', [AdminController::class, 'getExternalUserLookupConfig']);
+
     // Evaluation Questions Management (Admin)
     Route::get('/admin/evaluation-questions', [AdminController::class, 'getEvaluationQuestions']);
     Route::post('/admin/evaluation-questions', [AdminController::class, 'createEvaluationQuestion']);
@@ -131,6 +147,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/bulk', [SettingsController::class, 'updateBulk']);
         Route::post('/upload-image', [SettingsController::class, 'uploadImage']);
         Route::delete('/{key}', [SettingsController::class, 'destroy']);
+    });
+
+    // Email Template Management (Admin only)
+    Route::prefix('email-templates')->middleware('admin')->group(function () {
+        Route::get('/', [EmailTemplateController::class, 'index']);
+        Route::get('/config', [EmailTemplateController::class, 'getEmailConfig']);
+        Route::get('/{id}', [EmailTemplateController::class, 'show']);
+        Route::put('/{id}', [EmailTemplateController::class, 'update']);
+        Route::post('/{id}/toggle-status', [EmailTemplateController::class, 'toggleStatus']);
+        Route::post('/{id}/send-test', [EmailTemplateController::class, 'sendTest']);
     });
 
     // Test route
