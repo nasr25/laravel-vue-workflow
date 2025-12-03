@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('evaluation_questions', function (Blueprint $table) {
             $table->id();
             $table->text('question');
-            $table->decimal('weight', 5, 2); // e.g., 25.50 (percentage)
+            $table->decimal('weight', 5, 2)->nullable(); // e.g., 25.50 (percentage)
             $table->integer('order')->default(0); // Display order
             $table->boolean('is_active')->default(true);
             $table->timestamps();
