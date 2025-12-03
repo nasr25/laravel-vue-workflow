@@ -413,19 +413,21 @@ class AdminController extends Controller
 
         $validated = $request->validate([
             'question' => 'required|string',
-            'weight' => 'required|numeric|min:0|max:100',
+            'weight' => 'nullable|numeric|min:0|max:100',
             'order' => 'nullable|integer',
             'is_active' => 'boolean',
         ]);
 
         // Check if total weight will exceed 100%
-        $totalWeight = \App\Models\EvaluationQuestion::where('is_active', true)->sum('weight');
-        $newWeight = $validated['weight'];
+        if (isset($validated['weight']) && $validated['weight'] !== null) {
+            $totalWeight = \App\Models\EvaluationQuestion::where('is_active', true)->sum('weight');
+            $newWeight = $validated['weight'];
 
-        if ($totalWeight + $newWeight > 100) {
-            return response()->json([
-                'message' => "Total weight cannot exceed 100%. Current total: {$totalWeight}%. Adding {$newWeight}% would exceed the limit."
-            ], 400);
+            if ($totalWeight + $newWeight > 100) {
+                return response()->json([
+                    'message' => "Total weight cannot exceed 100%. Current total: {$totalWeight}%. Adding {$newWeight}% would exceed the limit."
+                ], 400);
+            }
         }
 
         $question = \App\Models\EvaluationQuestion::create($validated);
@@ -447,13 +449,13 @@ class AdminController extends Controller
 
         $validated = $request->validate([
             'question' => 'sometimes|required|string',
-            'weight' => 'sometimes|required|numeric|min:0|max:100',
+            'weight' => 'sometimes|nullable|numeric|min:0|max:100',
             'order' => 'sometimes|nullable|integer',
             'is_active' => 'sometimes|boolean',
         ]);
 
         // Check if total weight will exceed 100% (excluding current question)
-        if (isset($validated['weight'])) {
+        if (isset($validated['weight']) && $validated['weight'] !== null) {
             $totalWeight = \App\Models\EvaluationQuestion::where('is_active', true)
                 ->where('id', '!=', $id)
                 ->sum('weight');
