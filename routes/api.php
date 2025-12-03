@@ -10,6 +10,7 @@ use App\Http\Controllers\API\AdminController;
 use App\Http\Controllers\API\PermissionManagementController;
 use App\Http\Controllers\API\SettingsController;
 use App\Http\Controllers\API\EmailTemplateController;
+use App\Http\Controllers\API\EmployeeController;
 
 // Public routes
 Route::post('/auth/register', [AuthController::class, 'register']);
@@ -29,6 +30,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Idea Types (Public for form - active types only)
     Route::get('/idea-types', [App\Http\Controllers\API\IdeaTypeController::class, 'index']);
+
+    // Employee search
+    Route::get('/employees/search', [EmployeeController::class, 'search']);
 
     // Dashboard statistics
     Route::get('/dashboard/statistics', [RequestController::class, 'getStatistics']);

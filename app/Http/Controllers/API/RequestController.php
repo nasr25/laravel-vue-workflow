@@ -32,7 +32,7 @@ class RequestController extends Controller
         $user = $request->user();
 
         $requests = Request::where('user_id', $user->id)
-            ->with(['ideaType', 'department', 'currentDepartment', 'workflowPath', 'attachments'])
+            ->with(['ideaType', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'employees'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -52,6 +52,12 @@ class RequestController extends Controller
             'status' => 'nullable|string|in:draft,pending',
             'attachments' => 'nullable|array|max:5',
             'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png|max:10240', // Max 10MB per file
+            'idea_ownership_type' => 'nullable|string|in:individual,shared', // individual or shared
+            'employees' => 'nullable|array',
+            'employees.*.employee_name' => 'required|string',
+            'employees.*.employee_email' => 'nullable|email',
+            'employees.*.employee_department' => 'nullable|string',
+            'employees.*.employee_title' => 'nullable|string',
         ]);
 
         // Determine initial department and status
@@ -80,9 +86,23 @@ class RequestController extends Controller
             'benefits' => $validated['benefits'] ?? null,
             'user_id' => $request->user()->id,
             'status' => $status,
+            'idea_type' => $validated['idea_ownership_type'] ?? 'individual',
             'current_department_id' => $currentDepartmentId,
             'submitted_at' => $status === 'pending' ? now() : null,
         ]);
+
+        // Handle employees if shared idea
+        if (isset($validated['employees']) && is_array($validated['employees'])) {
+            foreach ($validated['employees'] as $employee) {
+                \App\Models\RequestEmployee::create([
+                    'request_id' => $userRequest->id,
+                    'employee_name' => $employee['employee_name'],
+                    'employee_email' => $employee['employee_email'] ?? null,
+                    'employee_department' => $employee['employee_department'] ?? null,
+                    'employee_title' => $employee['employee_title'] ?? null,
+                ]);
+            }
+        }
 
         // Handle file attachments
         if ($request->hasFile('attachments')) {
@@ -124,7 +144,7 @@ class RequestController extends Controller
 
         return response()->json([
             'message' => $status === 'pending' ? 'Idea submitted successfully' : 'Draft saved successfully',
-            'request' => $userRequest->load(['ideaType', 'department', 'currentDepartment', 'workflowPath', 'attachments'])
+            'request' => $userRequest->load(['ideaType', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'employees'])
         ], 201);
     }
 
@@ -132,7 +152,7 @@ class RequestController extends Controller
     {
         $userRequest = Request::where('id', $id)
             ->where('user_id', $request->user()->id)
-            ->with(['ideaType', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'transitions.actionedBy', 'transitions.toDepartment'])
+            ->with(['ideaType', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'employees', 'transitions.actionedBy', 'transitions.toDepartment'])
             ->firstOrFail();
 
         return response()->json([

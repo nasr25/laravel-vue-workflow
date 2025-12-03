@@ -21,6 +21,7 @@ class Request extends Model
         'current_user_id',
         'workflow_path_id',
         'status',
+        'idea_type',
         'rejection_reason',
         'additional_details',
         'submitted_at',
@@ -82,6 +83,11 @@ class Request extends Model
     public function pathEvaluations()
     {
         return $this->hasMany(PathEvaluation::class);
+    }
+
+    public function employees()
+    {
+        return $this->hasMany(RequestEmployee::class);
     }
 
     public function getCurrentStep()
