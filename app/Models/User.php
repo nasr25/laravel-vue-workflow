@@ -41,7 +41,7 @@ class User extends Authenticatable
     // Relationships
     public function departments()
     {
-        return $this->belongsToMany(Department::class)
+        return $this->belongsToMany(Department::class, 'department_user')
             ->withPivot('role')
             ->withTimestamps();
     }

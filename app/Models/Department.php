@@ -24,21 +24,21 @@ class Department extends Model
 
     public function users()
     {
-        return $this->belongsToMany(User::class)
+        return $this->belongsToMany(User::class, 'department_user')
             ->withPivot('role')
             ->withTimestamps();
     }
 
     public function managers()
     {
-        return $this->belongsToMany(User::class)
+        return $this->belongsToMany(User::class, 'department_user')
             ->wherePivot('role', 'manager')
             ->withTimestamps();
     }
 
     public function employees()
     {
-        return $this->belongsToMany(User::class)
+        return $this->belongsToMany(User::class, 'department_user')
             ->wherePivot('role', 'employee')
             ->withTimestamps();
     }
