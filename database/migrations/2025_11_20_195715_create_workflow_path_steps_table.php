@@ -19,7 +19,7 @@ return new class extends Migration
             $table->boolean('requires_approval')->default(true);
             $table->timestamps();
 
-            $table->unique(['workflow_path_id', 'department_id', 'step_order']);
+            $table->unique(['workflow_path_id', 'department_id', 'step_order'], 'wp_steps_unique');
         });
     }
 
