@@ -243,7 +243,7 @@ class AdminController extends Controller
         $department = Department::findOrFail($validated['department_id']);
 
         // Check if already assigned
-        if ($user->departments()->where('department_id', $department->id)->exists()) {
+        if ($user->departments()->where('departments.id', $department->id)->exists()) {
             return response()->json([
                 'message' => 'User is already assigned to this department'
             ], 400);
@@ -274,7 +274,7 @@ class AdminController extends Controller
         $department = Department::findOrFail($validated['department_id']);
 
         // Check if assigned
-        if (!$user->departments()->where('department_id', $department->id)->exists()) {
+        if (!$user->departments()->where('departments.id', $department->id)->exists()) {
             return response()->json([
                 'message' => 'User is not assigned to this department'
             ], 400);
