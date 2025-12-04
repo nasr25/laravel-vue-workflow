@@ -129,7 +129,7 @@ class SettingsController extends Controller
     {
         $validated = $request->validate([
             'key' => 'required|string',
-            'image' => 'required|image|mimes:png,jpg,jpeg,svg|max:2048',
+            'image' => 'required|file|mimes:png,jpg,jpeg,svg,webp|max:2048',
         ]);
 
         // Delete old image if exists
