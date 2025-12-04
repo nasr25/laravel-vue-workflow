@@ -341,6 +341,12 @@ class DatabaseSeeder extends Seeder
         // Call the Settings Seeder
         $this->call(SettingsSeeder::class);
 
+        // Call the Idea Type Seeder
+        $this->call(IdeaTypeSeeder::class);
+
+        // Call the Email Template Seeder
+        $this->call(EmailTemplateSeeder::class);
+
         $this->command->info('Database seeded successfully!');
         $this->command->info('');
         $this->command->info('Login Credentials:');
