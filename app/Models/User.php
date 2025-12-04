@@ -66,7 +66,7 @@ class User extends Authenticatable
     {
         return $this->departments()
             ->where('departments.id', $departmentId)
-            ->wherePivot('role', 'manager')
+            ->where('department_user.role', 'manager')
             ->exists();
     }
 

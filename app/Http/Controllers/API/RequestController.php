@@ -377,7 +377,7 @@ class RequestController extends Controller
         } elseif ($user->role === 'manager') {
             // Check if manager is in Department A
             $managedDepartments = $user->departments()
-                ->wherePivot('role', 'manager')
+                ->where('department_user.role', 'manager')
                 ->pluck('departments.id');
 
             $deptA = \App\Models\Department::where('is_department_a', true)->first();

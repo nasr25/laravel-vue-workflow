@@ -214,7 +214,7 @@ class NotificationService
         // 2. Notify Department A managers (who can assign paths)
         $departmentAManagers = User::whereHas('departments', function ($query) {
             $query->where('departments.id', 1) // Department A is typically id 1
-                  ->wherePivot('role', 'manager');
+                  ->where('department_user.role', 'manager');
         })->get();
         $users = array_merge($users, $departmentAManagers->all());
 
@@ -230,7 +230,7 @@ class NotificationService
         if ($request->current_department_id) {
             $departmentManagers = User::whereHas('departments', function ($query) use ($request) {
                 $query->where('departments.id', $request->current_department_id)
-                      ->wherePivot('role', 'manager');
+                      ->where('department_user.role', 'manager');
             })->get();
             $users = array_merge($users, $departmentManagers->all());
         }

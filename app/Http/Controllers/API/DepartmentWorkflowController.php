@@ -55,7 +55,7 @@ class DepartmentWorkflowController extends Controller
         // Check if user is a manager in any of their departments
         $isManager = $user->departments()
             ->whereIn('departments.id', $userDepartments)
-            ->wherePivot('role', 'manager')
+            ->where('department_user.role', 'manager')
             ->exists();
 
         // Both managers and employees can see all requests in their department
@@ -80,7 +80,7 @@ class DepartmentWorkflowController extends Controller
 
         // Get departments where user is manager
         $managedDepartments = $user->departments()
-            ->wherePivot('role', 'manager')
+            ->where('department_user.role', 'manager')
             ->pluck('departments.id');
 
         if ($managedDepartments->isEmpty()) {
@@ -116,7 +116,7 @@ class DepartmentWorkflowController extends Controller
 
         // Verify user is manager in a department
         $managedDepartments = $user->departments()
-            ->wherePivot('role', 'manager')
+            ->where('department_user.role', 'manager')
             ->pluck('departments.id');
 
         if ($managedDepartments->isEmpty()) {
@@ -249,7 +249,7 @@ class DepartmentWorkflowController extends Controller
 
         // Get departments where user is manager
         $managedDepartments = $user->departments()
-            ->wherePivot('role', 'manager')
+            ->where('department_user.role', 'manager')
             ->pluck('departments.id');
 
         if ($managedDepartments->isEmpty()) {
@@ -318,7 +318,7 @@ class DepartmentWorkflowController extends Controller
 
         // Get departments where user is manager
         $managedDepartments = $user->departments()
-            ->wherePivot('role', 'manager')
+            ->where('department_user.role', 'manager')
             ->pluck('departments.id');
 
         if ($managedDepartments->isEmpty()) {
@@ -367,7 +367,7 @@ class DepartmentWorkflowController extends Controller
 
         // Get departments where user is manager
         $managedDepartments = $user->departments()
-            ->wherePivot('role', 'manager')
+            ->where('department_user.role', 'manager')
             ->pluck('departments.id');
 
         if ($managedDepartments->isEmpty()) {
@@ -415,7 +415,7 @@ class DepartmentWorkflowController extends Controller
 
         // Get departments where user is manager
         $managedDepartments = $user->departments()
-            ->wherePivot('role', 'manager')
+            ->where('department_user.role', 'manager')
             ->pluck('departments.id');
 
         if ($managedDepartments->isEmpty()) {
@@ -479,7 +479,7 @@ class DepartmentWorkflowController extends Controller
 
         // Get departments where user is manager
         $managedDepartments = $user->departments()
-            ->wherePivot('role', 'manager')
+            ->where('department_user.role', 'manager')
             ->pluck('departments.id');
 
         if ($managedDepartments->isEmpty()) {
