@@ -58,7 +58,7 @@ class WorkflowController extends Controller
         $requests = Request::where('current_department_id', $deptA->id)
             ->whereIn('status', ['pending', 'in_review'])
             ->with(['user', 'currentDepartment', 'workflowPath', 'attachments', 'transitions.actionedBy'])
-            ->orderBy('submitted_at', 'asc')
+            ->orderBy('submitted_at', 'desc')
             ->get();
 
         return response()->json([
