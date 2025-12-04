@@ -65,7 +65,7 @@ class User extends Authenticatable
     public function isManagerOf($departmentId)
     {
         return $this->departments()
-            ->where('department_id', $departmentId)
+            ->where('departments.id', $departmentId)
             ->wherePivot('role', 'manager')
             ->exists();
     }
@@ -73,7 +73,7 @@ class User extends Authenticatable
     public function isEmployeeOf($departmentId)
     {
         return $this->departments()
-            ->where('department_id', $departmentId)
+            ->where('departments.id', $departmentId)
             ->exists();
     }
 }
