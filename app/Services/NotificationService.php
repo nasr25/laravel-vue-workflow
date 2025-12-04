@@ -236,7 +236,7 @@ class NotificationService
         }
 
         // 5. Notify all admins
-        $admins = User::where('is_admin', true)->get();
+        $admins = User::where('role', 'admin')->get();
         $users = array_merge($users, $admins->all());
 
         // Remove duplicates
