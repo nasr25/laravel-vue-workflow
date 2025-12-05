@@ -32,6 +32,13 @@ class DepartmentWorkflowController extends Controller
                 ->orderBy('updated_at', 'desc')
                 ->get();
 
+            // Add evaluation status for each request
+            $requests->each(function($request) {
+                $request->has_evaluated = true; // Admins don't need to evaluate
+                $request->requires_evaluation = false;
+                $request->path_evaluations = [];
+            });
+
             return response()->json([
                 'requests' => $requests
             ]);
@@ -65,6 +72,42 @@ class DepartmentWorkflowController extends Controller
         $requests = $query->with(['user', 'currentDepartment', 'workflowPath.steps.department', 'attachments', 'transitions.actionedBy', 'currentAssignee'])
             ->orderBy('updated_at', 'desc')
             ->get();
+
+        // Add evaluation status for each request
+        $requests->each(function($request) use ($isManager) {
+            if ($isManager && $request->workflow_path_id) {
+                // Get evaluation questions for this workflow path
+                $questionsCount = \App\Models\PathEvaluationQuestion::where('workflow_path_id', $request->workflow_path_id)
+                    ->where('is_active', true)
+                    ->count();
+
+                // Get completed evaluations for this request with questions
+                $evaluations = \App\Models\PathEvaluation::where('request_id', $request->id)
+                    ->with('question')
+                    ->get();
+
+                // Request is evaluated if all questions have been answered
+                $request->has_evaluated = $questionsCount > 0 && $evaluations->count() === $questionsCount;
+                $request->requires_evaluation = $questionsCount > 0;
+                $request->path_evaluations = $evaluations;
+
+                // Check if request was previously assigned to an employee
+                $lastAssignment = \App\Models\RequestTransition::where('request_id', $request->id)
+                    ->where('action', 'assign')
+                    ->where('to_department_id', $request->current_department_id)
+                    ->latest()
+                    ->first();
+
+                $request->was_assigned_to_employee = $lastAssignment !== null;
+                $request->last_assigned_user_id = $lastAssignment?->to_user_id ?? null;
+            } else {
+                $request->has_evaluated = true; // Employees don't need to evaluate
+                $request->requires_evaluation = false;
+                $request->path_evaluations = [];
+                $request->was_assigned_to_employee = false;
+                $request->last_assigned_user_id = null;
+            }
+        });
 
         return response()->json([
             'requests' => $requests
@@ -500,6 +543,7 @@ class DepartmentWorkflowController extends Controller
         // Mark as rejected
         $userRequest->update([
             'status' => 'rejected',
+            'current_department_id' => null,
             'current_user_id' => null,
         ]);
 

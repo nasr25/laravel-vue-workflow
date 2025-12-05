@@ -266,6 +266,8 @@ class WorkflowController extends Controller
             'status' => 'rejected',
             'rejection_reason' => $validated['rejection_reason'],
             'completed_at' => now(),
+            'current_department_id' => null,
+            'current_user_id' => null,
         ]);
 
         // Create transition record
@@ -393,6 +395,8 @@ class WorkflowController extends Controller
         $userRequest->update([
             'status' => 'completed',
             'completed_at' => now(),
+            'current_department_id' => null,
+            'current_user_id' => null,
         ]);
 
         // Create transition record
