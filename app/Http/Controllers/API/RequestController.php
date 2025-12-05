@@ -152,7 +152,7 @@ class RequestController extends Controller
     {
         $userRequest = Request::where('id', $id)
             ->where('user_id', $request->user()->id)
-            ->with(['ideaType', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'employees', 'transitions.actionedBy', 'transitions.toDepartment'])
+            ->with(['user', 'ideaType', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'employees', 'transitions.actionedBy', 'transitions.toDepartment'])
             ->firstOrFail();
 
         return response()->json([
