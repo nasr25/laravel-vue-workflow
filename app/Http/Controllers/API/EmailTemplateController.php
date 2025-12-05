@@ -20,9 +20,16 @@ class EmailTemplateController extends Controller
     /**
      * Get all email templates
      */
-    public function index()
+    public function index(Request $request)
     {
-        $templates = EmailTemplate::orderBy('event_type')->get();
+        $query = EmailTemplate::query();
+
+        // Filter by recipient_type if provided
+        if ($request->has('recipient_type')) {
+            $query->where('recipient_type', $request->recipient_type);
+        }
+
+        $templates = $query->orderBy('recipient_type')->orderBy('event_type')->get();
 
         // Add available placeholders for each template
         $templates = $templates->map(function ($template) {
