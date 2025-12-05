@@ -170,14 +170,43 @@ class RequestController extends Controller
         $validated = $request->validate([
             'title' => 'sometimes|required|string|max:200',
             'description' => 'sometimes|required|string|min:25',
-            'idea_type' => 'nullable|string|in:x,y,z',
+            'idea_type' => 'nullable|string', // Can be idea type ID
             'department' => 'nullable|string',
             'benefits' => 'nullable|string',
             'additional_details' => 'sometimes|nullable|string',
             'status' => 'nullable|string|in:draft,pending',
             'attachments' => 'nullable|array|max:5',
             'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png|max:10240', // Max 10MB per file
+            'idea_ownership_type' => 'nullable|string|in:individual,shared',
+            'employees' => 'nullable|array',
+            'employees.*.employee_name' => 'required|string',
+            'employees.*.employee_email' => 'nullable|email',
+            'employees.*.employee_department' => 'nullable|string',
+            'employees.*.employee_title' => 'nullable|string',
         ]);
+
+        // Handle idea_type conversion to idea_type_id
+        $updateData = $validated;
+        if (isset($validated['idea_type'])) {
+            $updateData['idea_type_id'] = (int) $validated['idea_type'];
+            unset($updateData['idea_type']);
+        }
+
+        // Handle department conversion to department_id
+        if (isset($validated['department'])) {
+            if ($validated['department'] === 'unknown') {
+                $updateData['department_id'] = null;
+            } else {
+                $updateData['department_id'] = (int) $validated['department'];
+            }
+            unset($updateData['department']);
+        }
+
+        // Handle idea_ownership_type
+        if (isset($validated['idea_ownership_type'])) {
+            $updateData['idea_type'] = $validated['idea_ownership_type'];
+            unset($updateData['idea_ownership_type']);
+        }
 
         // Determine if status should change
         $status = $validated['status'] ?? $userRequest->status;
@@ -188,8 +217,8 @@ class RequestController extends Controller
             $departmentA = \App\Models\Department::where('is_department_a', true)->first();
             if ($departmentA) {
                 $departmentId = $departmentA->id;
-                $validated['current_department_id'] = $departmentId;
-                $validated['submitted_at'] = now();
+                $updateData['current_department_id'] = $departmentId;
+                $updateData['submitted_at'] = now();
 
                 $previousStatus = $userRequest->status;
 
@@ -204,7 +233,7 @@ class RequestController extends Controller
                     'comments' => 'Request resubmitted for review',
                 ]);
 
-                $userRequest->update($validated);
+                $userRequest->update($updateData);
 
                 // Send notifications to all stakeholders
                 $this->notificationService->notifyRequestStakeholders(
@@ -216,7 +245,26 @@ class RequestController extends Controller
                 );
             }
         } else {
-            $userRequest->update($validated);
+            $userRequest->update($updateData);
+        }
+
+        // Handle employees update if provided
+        if (isset($validated['employees'])) {
+            // Delete existing employees
+            \App\Models\RequestEmployee::where('request_id', $userRequest->id)->delete();
+
+            // Add new employees
+            if (is_array($validated['employees'])) {
+                foreach ($validated['employees'] as $employee) {
+                    \App\Models\RequestEmployee::create([
+                        'request_id' => $userRequest->id,
+                        'employee_name' => $employee['employee_name'],
+                        'employee_email' => $employee['employee_email'] ?? null,
+                        'employee_department' => $employee['employee_department'] ?? null,
+                        'employee_title' => $employee['employee_title'] ?? null,
+                    ]);
+                }
+            }
         }
 
         // Handle file attachments
