@@ -92,7 +92,7 @@ class RequestController extends Controller
         ]);
 
         // Handle employees if shared idea
-        if (isset($validated['employees']) && is_array($validated['employees'])) {
+        if (isset($validated['idea_ownership_type']) && $validated['idea_ownership_type'] === 'shared' && isset($validated['employees']) && is_array($validated['employees'])) {
             foreach ($validated['employees'] as $employee) {
                 \App\Models\RequestEmployee::create([
                     'request_id' => $userRequest->id,
@@ -253,8 +253,9 @@ class RequestController extends Controller
             // Delete existing employees
             \App\Models\RequestEmployee::where('request_id', $userRequest->id)->delete();
 
-            // Add new employees
-            if (is_array($validated['employees'])) {
+            // Add new employees only if idea_ownership_type is 'shared'
+            $ownershipType = $validated['idea_ownership_type'] ?? $userRequest->idea_type;
+            if ($ownershipType === 'shared' && is_array($validated['employees'])) {
                 foreach ($validated['employees'] as $employee) {
                     \App\Models\RequestEmployee::create([
                         'request_id' => $userRequest->id,
@@ -265,6 +266,9 @@ class RequestController extends Controller
                     ]);
                 }
             }
+        } elseif (isset($validated['idea_ownership_type']) && $validated['idea_ownership_type'] === 'individual') {
+            // If changing to individual, remove all employees
+            \App\Models\RequestEmployee::where('request_id', $userRequest->id)->delete();
         }
 
         // Handle file attachments
