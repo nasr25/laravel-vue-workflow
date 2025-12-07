@@ -26,7 +26,7 @@ class WorkflowController extends Controller
     {
         if (!$user->hasPermissionTo($permission)) {
             return response()->json([
-                'message' => 'Unauthorized. You do not have permission to perform this action.'
+                'message' => __('messages.unauthorized_action')
             ], 403);
         }
         return null;
@@ -42,7 +42,7 @@ class WorkflowController extends Controller
         // Check permission
         if (!$user->hasPermissionTo('workflow.view-pending')) {
             return response()->json([
-                'message' => 'Unauthorized. You do not have permission to view pending requests.'
+                'message' => __('messages.unauthorized_view_pending')
             ], 403);
         }
 
@@ -51,7 +51,7 @@ class WorkflowController extends Controller
 
         if (!$deptA) {
             return response()->json([
-                'message' => 'Department A not found'
+                'message' => __('messages.department_a_not_found')
             ], 404);
         }
 
@@ -77,7 +77,7 @@ class WorkflowController extends Controller
         // Check permission
         if (!$user->hasPermissionTo('workflow.view-pending')) {
             return response()->json([
-                'message' => 'Unauthorized. You do not have permission to view requests.'
+                'message' => __('messages.unauthorized_view_requests')
             ], 403);
         }
 
@@ -111,7 +111,7 @@ class WorkflowController extends Controller
         // Check permission
         if (!$user->hasPermissionTo('workflow.view-pending')) {
             return response()->json([
-                'message' => 'Unauthorized. You do not have permission to view request details.'
+                'message' => __('messages.unauthorized_view_details')
             ], 403);
         }
 
@@ -173,7 +173,7 @@ class WorkflowController extends Controller
 
         if (!$deptA) {
             return response()->json([
-                'message' => 'Department A not found'
+                'message' => __('messages.department_a_not_found')
             ], 404);
         }
 
@@ -194,7 +194,7 @@ class WorkflowController extends Controller
 
         if (!$firstStep) {
             return response()->json([
-                'message' => 'No steps found in this workflow path'
+                'message' => __('messages.no_steps_found')
             ], 400);
         }
 
@@ -235,7 +235,7 @@ class WorkflowController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Request assigned to workflow path successfully',
+            'message' => __('messages.request_assigned_to_path'),
             'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
         ]);
     }
@@ -257,7 +257,7 @@ class WorkflowController extends Controller
 
         if (!$deptA) {
             return response()->json([
-                'message' => 'Department A not found'
+                'message' => __('messages.department_a_not_found')
             ], 404);
         }
 
@@ -310,7 +310,7 @@ class WorkflowController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Request rejected successfully',
+            'message' => __('messages.request_rejected'),
             'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
         ]);
     }
@@ -332,7 +332,7 @@ class WorkflowController extends Controller
 
         if (!$deptA) {
             return response()->json([
-                'message' => 'Department A not found'
+                'message' => __('messages.department_a_not_found')
             ], 404);
         }
 
@@ -383,7 +383,7 @@ class WorkflowController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'More details requested from user',
+            'message' => __('messages.more_details_requested'),
             'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
         ]);
     }
@@ -405,7 +405,7 @@ class WorkflowController extends Controller
 
         if (!$deptA) {
             return response()->json([
-                'message' => 'Department A not found'
+                'message' => __('messages.department_a_not_found')
             ], 404);
         }
 
@@ -457,7 +457,7 @@ class WorkflowController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Request completed successfully',
+            'message' => __('messages.request_completed'),
             'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
         ]);
     }
@@ -479,7 +479,7 @@ class WorkflowController extends Controller
 
         if (!$deptA) {
             return response()->json([
-                'message' => 'Department A not found'
+                'message' => __('messages.department_a_not_found')
             ], 404);
         }
 
@@ -502,7 +502,7 @@ class WorkflowController extends Controller
 
         if (!$lastTransition || !$lastTransition->from_department_id) {
             return response()->json([
-                'message' => 'No previous department found to return to'
+                'message' => __('messages.no_previous_department')
             ], 400);
         }
 
@@ -538,7 +538,7 @@ class WorkflowController extends Controller
         );
 
         return response()->json([
-            'message' => 'Request returned to previous department for revision',
+            'message' => __('messages.request_returned_to_previous'),
             'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
         ]);
     }
@@ -560,7 +560,7 @@ class WorkflowController extends Controller
 
         if (!$deptA) {
             return response()->json([
-                'message' => 'Department A not found'
+                'message' => __('messages.department_a_not_found')
             ], 404);
         }
 
@@ -618,7 +618,7 @@ class WorkflowController extends Controller
         }
 
         return response()->json([
-            'message' => 'Evaluation submitted successfully'
+            'message' => __('messages.evaluation_submitted')
         ]);
     }
 }
