@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Department;
+use App\Models\AuditLog;
 use App\Services\ExternalUserLookupService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -66,6 +67,15 @@ class AdminController extends Controller
 
         $department = Department::create($validated);
 
+        // Log department creation
+        AuditLog::log([
+            'action' => 'created',
+            'model_type' => 'Department',
+            'model_id' => $department->id,
+            'description' => "Admin created department: {$department->name}",
+            'new_values' => $validated,
+        ]);
+
         return response()->json([
             'message' => 'Department created successfully',
             'department' => $department
@@ -80,6 +90,7 @@ class AdminController extends Controller
         if ($error = $this->checkAdmin($request)) return $error;
 
         $department = Department::findOrFail($id);
+        $oldValues = $department->toArray();
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -90,6 +101,16 @@ class AdminController extends Controller
         ]);
 
         $department->update($validated);
+
+        // Log department update
+        AuditLog::log([
+            'action' => 'updated',
+            'model_type' => 'Department',
+            'model_id' => $department->id,
+            'description' => "Admin updated department: {$department->name}",
+            'old_values' => $oldValues,
+            'new_values' => $validated,
+        ]);
 
         return response()->json([
             'message' => 'Department updated successfully',
@@ -113,7 +134,16 @@ class AdminController extends Controller
             ], 400);
         }
 
+        $departmentName = $department->name;
         $department->delete();
+
+        // Log department deletion
+        AuditLog::log([
+            'action' => 'deleted',
+            'model_type' => 'Department',
+            'model_id' => $id,
+            'description' => "Admin deleted department: {$departmentName}",
+        ]);
 
         return response()->json([
             'message' => 'Department deleted successfully'
@@ -157,6 +187,14 @@ class AdminController extends Controller
 
         $user = User::create($validated);
 
+        // Log user creation
+        AuditLog::log([
+            'action' => 'created',
+            'model_type' => 'User',
+            'model_id' => $user->id,
+            'description' => "Admin created user: {$user->name} ({$user->email}) with role {$user->role}",
+        ]);
+
         return response()->json([
             'message' => 'User created successfully',
             'user' => $user
@@ -171,6 +209,7 @@ class AdminController extends Controller
         if ($error = $this->checkAdmin($request)) return $error;
 
         $user = User::findOrFail($id);
+        $oldValues = $user->toArray();
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -187,6 +226,15 @@ class AdminController extends Controller
         }
 
         $user->update($validated);
+
+        // Log user update
+        AuditLog::log([
+            'action' => 'updated',
+            'model_type' => 'User',
+            'model_id' => $user->id,
+            'description' => "Admin updated user: {$user->name} ({$user->email})",
+            'old_values' => $oldValues,
+        ]);
 
         return response()->json([
             'message' => 'User updated successfully',
@@ -217,7 +265,17 @@ class AdminController extends Controller
             ], 400);
         }
 
+        $userName = $user->name;
+        $userEmail = $user->email;
         $user->delete();
+
+        // Log user deletion
+        AuditLog::log([
+            'action' => 'deleted',
+            'model_type' => 'User',
+            'model_id' => $id,
+            'description' => "Admin deleted user: {$userName} ({$userEmail})",
+        ]);
 
         return response()->json([
             'message' => 'User deleted successfully'
@@ -250,6 +308,14 @@ class AdminController extends Controller
         }
 
         $user->departments()->attach($department->id, ['role' => $validated['role']]);
+
+        // Log user assignment
+        AuditLog::log([
+            'action' => 'assigned',
+            'model_type' => 'User',
+            'model_id' => $user->id,
+            'description' => "Admin assigned {$user->name} to department {$department->name} as {$validated['role']}",
+        ]);
 
         return response()->json([
             'message' => 'User assigned to department successfully',

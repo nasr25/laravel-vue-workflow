@@ -11,6 +11,7 @@ use App\Http\Controllers\API\PermissionManagementController;
 use App\Http\Controllers\API\SettingsController;
 use App\Http\Controllers\API\EmailTemplateController;
 use App\Http\Controllers\API\EmployeeController;
+use App\Http\Controllers\API\AuditLogController;
 
 // Public routes
 Route::post('/auth/register', [AuthController::class, 'register']);
@@ -174,6 +175,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{ideaType}', [App\Http\Controllers\API\IdeaTypeController::class, 'update']);
         Route::delete('/{ideaType}', [App\Http\Controllers\API\IdeaTypeController::class, 'destroy']);
         Route::post('/{ideaType}/toggle-status', [App\Http\Controllers\API\IdeaTypeController::class, 'toggleStatus']);
+    });
+
+    // Audit Logs (Admin only)
+    Route::prefix('audit-logs')->middleware('admin')->group(function () {
+        Route::get('/', [AuditLogController::class, 'index']);
+        Route::get('/stats', [AuditLogController::class, 'stats']);
+        Route::get('/filters', [AuditLogController::class, 'filters']);
+        Route::get('/{id}', [AuditLogController::class, 'show']);
+        Route::post('/cleanup', [AuditLogController::class, 'cleanup']);
     });
 
     // Test route

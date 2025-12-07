@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Request;
 use App\Models\WorkflowPath;
 use App\Models\Department;
+use App\Models\AuditLog;
 use App\Services\NotificationService;
 use Illuminate\Http\Request as HttpRequest;
 
@@ -224,6 +225,15 @@ class WorkflowController extends Controller
             ['workflow_path' => $workflowPath->name, 'department' => $firstStep->department->name]
         );
 
+        // Log workflow path assignment
+        AuditLog::log([
+            'user_id' => $user->id,
+            'action' => 'assigned',
+            'model_type' => 'Request',
+            'model_id' => $userRequest->id,
+            'description' => "Assigned request '{$userRequest->title}' to workflow path: {$workflowPath->name} and moved to {$firstStep->department->name}",
+        ]);
+
         return response()->json([
             'message' => 'Request assigned to workflow path successfully',
             'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
@@ -290,6 +300,15 @@ class WorkflowController extends Controller
             ['rejection_reason' => $validated['rejection_reason']]
         );
 
+        // Log request rejection
+        AuditLog::log([
+            'user_id' => $user->id,
+            'action' => 'rejected',
+            'model_type' => 'Request',
+            'model_id' => $userRequest->id,
+            'description' => "Rejected request '{$userRequest->title}'. Reason: {$validated['rejection_reason']}",
+        ]);
+
         return response()->json([
             'message' => 'Request rejected successfully',
             'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
@@ -353,6 +372,15 @@ class WorkflowController extends Controller
             $userRequest->fresh(['user', 'currentDepartment']),
             ['comments' => $validated['comments']]
         );
+
+        // Log request for more details
+        AuditLog::log([
+            'user_id' => $user->id,
+            'action' => 'requested_details',
+            'model_type' => 'Request',
+            'model_id' => $userRequest->id,
+            'description' => "Requested more details for request '{$userRequest->title}'. Comments: {$validated['comments']}",
+        ]);
 
         return response()->json([
             'message' => 'More details requested from user',
@@ -418,6 +446,15 @@ class WorkflowController extends Controller
             "Request '{$userRequest->title}' has been completed and approved!",
             ['completion_comments' => $validated['comments'] ?? 'Request completed and approved']
         );
+
+        // Log request completion
+        AuditLog::log([
+            'user_id' => $user->id,
+            'action' => 'completed',
+            'model_type' => 'Request',
+            'model_id' => $userRequest->id,
+            'description' => "Completed and approved request '{$userRequest->title}'",
+        ]);
 
         return response()->json([
             'message' => 'Request completed successfully',

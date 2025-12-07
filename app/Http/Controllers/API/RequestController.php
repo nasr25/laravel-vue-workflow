@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Request;
 use App\Models\RequestAttachment;
+use App\Models\AuditLog;
 use App\Services\NotificationService;
 use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\Storage;
@@ -141,6 +142,17 @@ class RequestController extends Controller
                 ['action' => 'submitted']
             );
         }
+
+        // Log request creation
+        AuditLog::log([
+            'user_id' => $request->user()->id,
+            'action' => $status === 'pending' ? 'submitted' : 'created',
+            'model_type' => 'Request',
+            'model_id' => $userRequest->id,
+            'description' => $status === 'pending'
+                ? "User submitted request: {$userRequest->title}"
+                : "User saved request draft: {$userRequest->title}",
+        ]);
 
         return response()->json([
             'message' => $status === 'pending' ? 'Idea submitted successfully' : 'Draft saved successfully',
@@ -300,6 +312,15 @@ class RequestController extends Controller
             }
         }
 
+        // Log request update
+        AuditLog::log([
+            'user_id' => $request->user()->id,
+            'action' => 'updated',
+            'model_type' => 'Request',
+            'model_id' => $userRequest->id,
+            'description' => "User updated request: {$userRequest->title}",
+        ]);
+
         return response()->json([
             'message' => $status === 'pending' ? 'Idea submitted successfully' : 'Draft updated successfully',
             'request' => $userRequest->load(['currentDepartment', 'workflowPath', 'attachments'])
@@ -313,7 +334,17 @@ class RequestController extends Controller
             ->where('status', 'draft')
             ->firstOrFail();
 
+        $requestTitle = $userRequest->title;
         $userRequest->delete();
+
+        // Log request deletion
+        AuditLog::log([
+            'user_id' => $request->user()->id,
+            'action' => 'deleted',
+            'model_type' => 'Request',
+            'model_id' => $id,
+            'description' => "User deleted request draft: {$requestTitle}",
+        ]);
 
         return response()->json([
             'message' => 'Request deleted successfully'

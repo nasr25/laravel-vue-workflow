@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Request;
 use App\Models\Department;
 use App\Models\User;
+use App\Models\AuditLog;
 use App\Services\NotificationService;
 use Illuminate\Http\Request as HttpRequest;
 
@@ -217,6 +218,15 @@ class DepartmentWorkflowController extends Controller
             "Request '{$userRequest->title}' has been assigned to {$employee->name} for review.",
             ['assigned_to' => $employee->name]
         );
+
+        // Log request assignment
+        AuditLog::log([
+            'user_id' => $user->id,
+            'action' => 'assigned',
+            'model_type' => 'Request',
+            'model_id' => $userRequest->id,
+            'description' => "Manager assigned request '{$userRequest->title}' to employee {$employee->name}",
+        ]);
 
         return response()->json([
             'message' => 'Request assigned to employee successfully',
@@ -503,6 +513,15 @@ class DepartmentWorkflowController extends Controller
             ['expected_execution_date' => $validated['expected_execution_date'], 'comments' => $validated['comments'] ?? '']
         );
 
+        // Log idea acceptance for later
+        AuditLog::log([
+            'user_id' => $user->id,
+            'action' => 'approved',
+            'model_type' => 'Request',
+            'model_id' => $userRequest->id,
+            'description' => "Accepted request '{$userRequest->title}' for later implementation. Expected date: {$validated['expected_execution_date']}",
+        ]);
+
         return response()->json([
             'message' => 'Idea accepted for later implementation',
             'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
@@ -567,6 +586,15 @@ class DepartmentWorkflowController extends Controller
             "Request '{$userRequest->title}' has been rejected. Comments: {$validated['comments']}",
             ['rejected_by' => $user->name, 'comments' => $validated['comments']]
         );
+
+        // Log idea rejection
+        AuditLog::log([
+            'user_id' => $user->id,
+            'action' => 'rejected',
+            'model_type' => 'Request',
+            'model_id' => $userRequest->id,
+            'description' => "Manager rejected request '{$userRequest->title}'. Comments: {$validated['comments']}",
+        ]);
 
         return response()->json([
             'message' => 'Idea rejected successfully',

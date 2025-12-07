@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
@@ -24,6 +25,15 @@ class AuthController extends Controller
             'password' => Hash::make($validated['password']),
             'role' => 'user',
             'is_active' => true,
+        ]);
+
+        // Log user registration
+        AuditLog::log([
+            'user_id' => $user->id,
+            'action' => 'registered',
+            'model_type' => 'User',
+            'model_id' => $user->id,
+            'description' => "User {$user->name} registered with email {$user->email}",
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -58,6 +68,15 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        // Log user login
+        AuditLog::log([
+            'user_id' => $user->id,
+            'action' => 'logged_in',
+            'model_type' => 'User',
+            'model_id' => $user->id,
+            'description' => "User {$user->name} logged in",
+        ]);
+
         // Load user with relationships and permissions
         $user->load(['departments', 'roles.permissions']);
 
@@ -72,7 +91,18 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        $user = $request->user();
+
+        // Log user logout
+        AuditLog::log([
+            'user_id' => $user->id,
+            'action' => 'logged_out',
+            'model_type' => 'User',
+            'model_id' => $user->id,
+            'description' => "User {$user->name} logged out",
+        ]);
+
+        $user->currentAccessToken()->delete();
 
         return response()->json([
             'message' => 'Logged out successfully'
