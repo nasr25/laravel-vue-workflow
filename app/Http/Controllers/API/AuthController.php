@@ -122,11 +122,10 @@ class AuthController extends Controller
 
     public function getDemoAccounts()
     {
-        // Get all active users for demo purposes
+        // Get all active users for demo purposes (ordered by ID - database insertion order)
         $users = User::where('is_active', true)
             ->with('departments')
-            ->orderBy('role')
-            ->orderBy('name')
+            ->orderBy('id')
             ->get()
             ->map(function ($user) {
                 // Determine icon based on role
