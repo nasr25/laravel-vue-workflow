@@ -162,7 +162,7 @@ class AdminController extends Controller
         $users = User::with(['departments' => function($query) {
             $query->withPivot('role');
         }, 'roles'])
-        ->orderBy('id', 'desc')
+        ->orderBy('id', 'asc')
         ->get();
 
         return response()->json([
