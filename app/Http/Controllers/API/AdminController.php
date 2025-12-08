@@ -715,4 +715,117 @@ class AdminController extends Controller
             'api_url' => config('services.user_lookup.url', env('USER_LOOKUP_API_URL'))
         ]);
     }
+
+    // ============= WORKFLOW PATH MANAGEMENT =============
+
+    /**
+     * Get all workflow paths
+     */
+    public function getWorkflowPaths(Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $paths = \App\Models\WorkflowPath::with(['department', 'steps.department'])
+            ->orderBy('order')
+            ->get();
+
+        return response()->json([
+            'paths' => $paths
+        ]);
+    }
+
+    /**
+     * Create a new workflow path
+     */
+    public function createWorkflowPath(Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'code' => 'required|string|max:50|unique:workflow_paths,code',
+            'description' => 'nullable|string',
+            'order' => 'nullable|integer',
+            'is_active' => 'boolean',
+        ]);
+
+        $path = \App\Models\WorkflowPath::create($validated);
+
+        // Log the action
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'created',
+            'model_type' => 'WorkflowPath',
+            'model_id' => $path->id,
+            'description' => "Created workflow path: {$path->name}",
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json([
+            'message' => 'Workflow path created successfully',
+            'path' => $path->load(['department', 'steps.department'])
+        ], 201);
+    }
+
+    /**
+     * Update a workflow path
+     */
+    public function updateWorkflowPath($id, Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $path = \App\Models\WorkflowPath::findOrFail($id);
+
+        $validated = $request->validate([
+            'name' => 'sometimes|required|string|max:255',
+            'code' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('workflow_paths')->ignore($path->id)],
+            'description' => 'nullable|string',
+            'order' => 'nullable|integer',
+            'is_active' => 'boolean',
+        ]);
+
+        $path->update($validated);
+
+        // Log the action
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'updated',
+            'model_type' => 'WorkflowPath',
+            'model_id' => $path->id,
+            'description' => "Updated workflow path: {$path->name}",
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json([
+            'message' => 'Workflow path updated successfully',
+            'path' => $path->load(['department', 'steps.department'])
+        ]);
+    }
+
+    /**
+     * Delete a workflow path
+     */
+    public function deleteWorkflowPath($id, Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $path = \App\Models\WorkflowPath::findOrFail($id);
+        $pathName = $path->name;
+
+        $path->delete();
+
+        // Log the action
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'deleted',
+            'model_type' => 'WorkflowPath',
+            'model_id' => $id,
+            'description' => "Deleted workflow path: {$pathName}",
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json([
+            'message' => 'Workflow path deleted successfully'
+        ]);
+    }
 }
