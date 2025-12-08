@@ -177,11 +177,14 @@ class AdminController extends Controller
     {
         if ($error = $this->checkAdmin($request)) return $error;
 
+        // Get all valid role names from the database
+        $validRoles = \Spatie\Permission\Models\Role::pluck('name')->toArray();
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:6',
-            'role' => ['required', Rule::in(['admin', 'manager', 'employee', 'user'])],
+            'role' => ['required', Rule::in($validRoles)],
             'is_active' => 'boolean',
         ]);
 
@@ -213,11 +216,14 @@ class AdminController extends Controller
         $user = User::findOrFail($id);
         $oldValues = $user->toArray();
 
+        // Get all valid role names from the database
+        $validRoles = \Spatie\Permission\Models\Role::pluck('name')->toArray();
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
             'password' => 'nullable|string|min:6',
-            'role' => ['required', Rule::in(['admin', 'manager', 'employee', 'user'])],
+            'role' => ['required', Rule::in($validRoles)],
             'is_active' => 'boolean',
         ]);
 
