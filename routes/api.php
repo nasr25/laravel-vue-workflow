@@ -16,6 +16,7 @@ use App\Http\Controllers\API\AuditLogController;
 // Public routes
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login', [AuthController::class, 'login']);
+Route::get('/auth/demo-accounts', [AuthController::class, 'getDemoAccounts']);
 
 // Public settings (no authentication required)
 Route::get('/settings/public', [SettingsController::class, 'getPublicSettings']);

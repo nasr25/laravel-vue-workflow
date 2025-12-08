@@ -119,4 +119,38 @@ class AuthController extends Controller
             'roles' => $user->getRoleNames()
         ]);
     }
+
+    public function getDemoAccounts()
+    {
+        // Get all active users for demo purposes
+        $users = User::where('is_active', true)
+            ->with('departments')
+            ->orderBy('role')
+            ->orderBy('name')
+            ->get()
+            ->map(function ($user) {
+                // Determine icon based on role
+                $icon = '👤';
+                if ($user->role === 'admin') {
+                    $icon = '👨‍💼';
+                } elseif ($user->departments->isNotEmpty()) {
+                    // Check if user is a manager in any department
+                    $isManager = $user->departments->contains(function ($dept) use ($user) {
+                        return $dept->pivot->role === 'manager';
+                    });
+                    $icon = $isManager ? '👔' : '🔧';
+                }
+
+                return [
+                    'icon' => $icon,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => ucfirst($user->role),
+                ];
+            });
+
+        return response()->json([
+            'users' => $users
+        ]);
+    }
 }
