@@ -105,6 +105,7 @@
     "draft": "Draft",
     "pending": "Pending",
     "in_review": "In Review",
+    "in_progress": "In Progress",
     "need_more_details": "Need Details",
     "approved": "Approved",
     "rejected": "Rejected",

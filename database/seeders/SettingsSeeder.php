@@ -19,6 +19,7 @@ class SettingsSeeder extends Seeder
                 'value' => 'Workflow Management System',
                 'type' => 'text',
                 'description' => 'Website name (English)',
+                'description_ar' => 'اسم الموقع (بالإنجليزية)',
                 'group' => 'general'
             ],
             [
@@ -26,13 +27,15 @@ class SettingsSeeder extends Seeder
                 'value' => 'نظام إدارة سير العمل',
                 'type' => 'text',
                 'description' => 'Website name (Arabic)',
+                'description_ar' => 'اسم الموقع (بالعربية)',
                 'group' => 'general'
             ],
             [
                 'key' => 'site_description',
                 'value' => 'A comprehensive workflow management system for handling requests and approvals',
                 'type' => 'text',
-                'description' => 'Website description',
+                'description' => 'Website description (English)',
+                'description_ar' => 'وصف الموقع (بالإنجليزية)',
                 'group' => 'general'
             ],
             [
@@ -40,6 +43,7 @@ class SettingsSeeder extends Seeder
                 'value' => 'نظام شامل لإدارة سير العمل للتعامل مع الطلبات والموافقات',
                 'type' => 'text',
                 'description' => 'Website description (Arabic)',
+                'description_ar' => 'وصف الموقع (بالعربية)',
                 'group' => 'general'
             ],
             [
@@ -47,6 +51,7 @@ class SettingsSeeder extends Seeder
                 'value' => 'info@workflow.com',
                 'type' => 'text',
                 'description' => 'Contact email address',
+                'description_ar' => 'البريد الإلكتروني للتواصل',
                 'group' => 'general'
             ],
             [
@@ -54,6 +59,7 @@ class SettingsSeeder extends Seeder
                 'value' => '+966 50 000 0000',
                 'type' => 'text',
                 'description' => 'Contact phone number',
+                'description_ar' => 'رقم الهاتف للتواصل',
                 'group' => 'general'
             ],
 
@@ -63,6 +69,7 @@ class SettingsSeeder extends Seeder
                 'value' => null,
                 'type' => 'image',
                 'description' => 'Website logo',
+                'description_ar' => 'شعار الموقع',
                 'group' => 'appearance'
             ],
             [
@@ -70,6 +77,7 @@ class SettingsSeeder extends Seeder
                 'value' => null,
                 'type' => 'image',
                 'description' => 'Website favicon',
+                'description_ar' => 'أيقونة الموقع المفضلة',
                 'group' => 'appearance'
             ],
             [
@@ -77,6 +85,7 @@ class SettingsSeeder extends Seeder
                 'value' => '#008844',
                 'type' => 'text',
                 'description' => 'Primary color (sidebar, header)',
+                'description_ar' => 'اللون الأساسي (الشريط الجانبي، الرأس)',
                 'group' => 'appearance'
             ],
             [
@@ -84,6 +93,7 @@ class SettingsSeeder extends Seeder
                 'value' => '#0066cc',
                 'type' => 'text',
                 'description' => 'Secondary color (buttons, links)',
+                'description_ar' => 'اللون الثانوي (الأزرار، الروابط)',
                 'group' => 'appearance'
             ],
             [
@@ -91,6 +101,7 @@ class SettingsSeeder extends Seeder
                 'value' => '#f59e0b',
                 'type' => 'text',
                 'description' => 'Accent color (highlights, warnings)',
+                'description_ar' => 'اللون التكميلي (التحديدات، التحذيرات)',
                 'group' => 'appearance'
             ],
 
@@ -100,6 +111,7 @@ class SettingsSeeder extends Seeder
                 'value' => '5',
                 'type' => 'number',
                 'description' => 'Maximum number of files per request',
+                'description_ar' => 'الحد الأقصى لعدد الملفات لكل طلب',
                 'group' => 'system'
             ],
             [
@@ -107,6 +119,7 @@ class SettingsSeeder extends Seeder
                 'value' => '10240',
                 'type' => 'number',
                 'description' => 'Maximum file size in KB (10240 KB = 10 MB)',
+                'description_ar' => 'الحد الأقصى لحجم الملف بالكيلوبايت (10240 كيلوبايت = 10 ميجابايت)',
                 'group' => 'system'
             ],
             [
@@ -114,6 +127,7 @@ class SettingsSeeder extends Seeder
                 'value' => json_encode(['pdf', 'jpg', 'jpeg', 'png']),
                 'type' => 'json',
                 'description' => 'Allowed file upload types',
+                'description_ar' => 'أنواع الملفات المسموح برفعها',
                 'group' => 'system'
             ],
             [
@@ -121,6 +135,7 @@ class SettingsSeeder extends Seeder
                 'value' => '25',
                 'type' => 'number',
                 'description' => 'Minimum description length for requests',
+                'description_ar' => 'الحد الأدنى لطول الوصف للطلبات',
                 'group' => 'system'
             ],
             [
@@ -128,6 +143,7 @@ class SettingsSeeder extends Seeder
                 'value' => 'true',
                 'type' => 'boolean',
                 'description' => 'Enable email notifications',
+                'description_ar' => 'تفعيل إشعارات البريد الإلكتروني',
                 'group' => 'system'
             ],
             [
@@ -135,6 +151,7 @@ class SettingsSeeder extends Seeder
                 'value' => 'notifications@workflow.com',
                 'type' => 'text',
                 'description' => 'Email address for system notifications',
+                'description_ar' => 'البريد الإلكتروني لإشعارات النظام',
                 'group' => 'system'
             ],
 
@@ -144,6 +161,7 @@ class SettingsSeeder extends Seeder
                 'value' => 'true',
                 'type' => 'boolean',
                 'description' => 'Enable request evaluations',
+                'description_ar' => 'تفعيل تقييمات الطلبات',
                 'group' => 'features'
             ],
             [
@@ -151,6 +169,7 @@ class SettingsSeeder extends Seeder
                 'value' => 'true',
                 'type' => 'boolean',
                 'description' => 'Enable workflow path evaluations',
+                'description_ar' => 'تفعيل تقييمات مسار سير العمل',
                 'group' => 'features'
             ],
             [
@@ -158,6 +177,7 @@ class SettingsSeeder extends Seeder
                 'value' => 'true',
                 'type' => 'boolean',
                 'description' => 'Enable comments on requests',
+                'description_ar' => 'تفعيل التعليقات على الطلبات',
                 'group' => 'features'
             ],
             [
@@ -165,6 +185,7 @@ class SettingsSeeder extends Seeder
                 'value' => 'true',
                 'type' => 'boolean',
                 'description' => 'Enable file attachments on requests',
+                'description_ar' => 'تفعيل المرفقات على الطلبات',
                 'group' => 'features'
             ],
 
@@ -173,7 +194,8 @@ class SettingsSeeder extends Seeder
                 'key' => 'footer_text',
                 'value' => '© 2025 Workflow Management System. All rights reserved.',
                 'type' => 'text',
-                'description' => 'Footer copyright text',
+                'description' => 'Footer copyright text (English)',
+                'description_ar' => 'نص حقوق النشر بالتذييل (بالإنجليزية)',
                 'group' => 'footer'
             ],
             [
@@ -181,6 +203,7 @@ class SettingsSeeder extends Seeder
                 'value' => '© 2025 نظام إدارة سير العمل. جميع الحقوق محفوظة.',
                 'type' => 'text',
                 'description' => 'Footer copyright text (Arabic)',
+                'description_ar' => 'نص حقوق النشر بالتذييل (بالعربية)',
                 'group' => 'footer'
             ],
             [
@@ -188,6 +211,7 @@ class SettingsSeeder extends Seeder
                 'value' => 'true',
                 'type' => 'boolean',
                 'description' => 'Show footer navigation links',
+                'description_ar' => 'إظهار روابط التنقل بالتذييل',
                 'group' => 'footer'
             ],
         ];
@@ -199,6 +223,7 @@ class SettingsSeeder extends Seeder
                     'value' => $setting['value'],
                     'type' => $setting['type'],
                     'description' => $setting['description'],
+                    'description_ar' => $setting['description_ar'] ?? null,
                     'group' => $setting['group']
                 ]
             );

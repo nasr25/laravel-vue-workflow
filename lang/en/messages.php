@@ -20,4 +20,16 @@ return [
     'request_completed' => 'Request completed successfully',
     'request_returned_to_previous' => 'Request returned to previous department for revision',
     'evaluation_submitted' => 'Evaluation submitted successfully',
+
+    // Status translations
+    'status' => [
+        'draft' => 'Draft',
+        'pending' => 'Pending',
+        'in_review' => 'In Review',
+        'in_progress' => 'In Progress',
+        'need_more_details' => 'Need More Details',
+        'approved' => 'Approved',
+        'rejected' => 'Rejected',
+        'completed' => 'Completed',
+    ],
 ];

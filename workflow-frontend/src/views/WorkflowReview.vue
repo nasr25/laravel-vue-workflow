@@ -371,10 +371,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useI18n } from 'vue-i18n'
 import axios from 'axios'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 const requests = ref([])
 const workflowPaths = ref([])
@@ -502,10 +504,8 @@ const goBack = () => {
 }
 
 const formatStatus = (status) => {
-  return status
-    .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
+  // Use i18n translation if available, otherwise fallback to formatted string
+  return t(`status.${status}`, status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '))
 }
 
 const formatDate = (dateString) => {
@@ -554,7 +554,11 @@ const confirmAssign = async () => {
     )
 
     success.value = 'Request assigned to workflow path successfully'
+
+    // Close modal first
     closeAssignModal()
+
+    // Refresh the requests list to update the UI
     await loadRequests()
 
     setTimeout(() => (success.value = null), 5000)
@@ -638,7 +642,11 @@ const confirmReject = async () => {
     )
 
     success.value = 'Request rejected successfully'
+
+    // Close modal first
     closeRejectModal()
+
+    // Refresh the requests list to update the UI
     await loadRequests()
 
     setTimeout(() => (success.value = null), 5000)
@@ -1017,6 +1025,11 @@ h1 {
 .badge-in_review {
   background: #cfe2ff;
   color: #084298;
+}
+
+.badge-in_progress {
+  background: #d1ecf1 !important;
+  color: #0c5460 !important;
 }
 
 .request-body {

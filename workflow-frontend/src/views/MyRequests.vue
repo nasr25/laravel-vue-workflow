@@ -315,6 +315,11 @@ h1 {
   color: #084298;
 }
 
+.badge-in_progress {
+  background: #d1ecf1 !important;
+  color: #0c5460 !important;
+}
+
 .badge-need_more_details {
   background: #f8d7da;
   color: #842029;

@@ -28,7 +28,7 @@ class DepartmentWorkflowController extends Controller
 
         // Admin can see all requests
         if ($user->role === 'admin') {
-            $requests = Request::whereIn('status', ['pending', 'in_review'])
+            $requests = Request::whereIn('status', ['pending', 'in_review', 'in_progress'])
                 ->with(['user', 'currentDepartment', 'workflowPath.steps.department', 'attachments', 'transitions.actionedBy', 'currentAssignee'])
                 ->orderBy('updated_at', 'desc')
                 ->get();
@@ -58,7 +58,7 @@ class DepartmentWorkflowController extends Controller
         // If user is a manager, show all requests in their department
         // If user is an employee, show all requests (both assigned and unassigned)
         $query = Request::whereIn('current_department_id', $userDepartments)
-            ->where('status', 'in_review');
+            ->whereIn('status', ['in_review', 'in_progress']);
 
         // Check if user is a manager in any of their departments
         $isManager = $user->departments()
@@ -171,7 +171,7 @@ class DepartmentWorkflowController extends Controller
 
         $userRequest = Request::where('id', $requestId)
             ->whereIn('current_department_id', $managedDepartments)
-            ->where('status', 'in_review')
+            ->whereIn('status', ['in_review', 'in_progress'])
             ->firstOrFail();
 
         // Verify employee belongs to the same department
@@ -184,8 +184,12 @@ class DepartmentWorkflowController extends Controller
             ], 400);
         }
 
+        // Store the original status before updating
+        $originalStatus = $userRequest->status;
+
         $userRequest->update([
             'current_user_id' => $employee->id,
+            'status' => 'in_progress',
         ]);
 
         // Create transition record
@@ -195,8 +199,8 @@ class DepartmentWorkflowController extends Controller
             'to_user_id' => $employee->id,
             'actioned_by' => $user->id,
             'action' => 'assign',
-            'from_status' => 'in_review',
-            'to_status' => 'in_review',
+            'from_status' => $originalStatus,
+            'to_status' => 'in_progress',
             'comments' => $validated['comments'] ?? "Assigned to {$employee->name}",
         ]);
 
@@ -250,7 +254,7 @@ class DepartmentWorkflowController extends Controller
 
         $userRequest = Request::where('id', $requestId)
             ->whereIn('current_department_id', $userDepartments)
-            ->where('status', 'in_review')
+            ->whereIn('status', ['in_review', 'in_progress'])
             ->where('current_user_id', $user->id) // Must be assigned to this employee
             ->firstOrFail();
 
@@ -313,7 +317,7 @@ class DepartmentWorkflowController extends Controller
 
         $userRequest = Request::where('id', $requestId)
             ->whereIn('current_department_id', $managedDepartments)
-            ->where('status', 'in_review')
+            ->whereIn('status', ['in_review', 'in_progress'])
             ->whereNull('current_user_id') // Must not be assigned to employee
             ->firstOrFail();
 
@@ -479,7 +483,7 @@ class DepartmentWorkflowController extends Controller
 
         $userRequest = Request::where('id', $requestId)
             ->whereIn('current_department_id', $managedDepartments)
-            ->where('status', 'in_review')
+            ->whereIn('status', ['in_review', 'in_progress'])
             ->whereNull('current_user_id')
             ->firstOrFail();
 
@@ -552,7 +556,7 @@ class DepartmentWorkflowController extends Controller
 
         $userRequest = Request::where('id', $requestId)
             ->whereIn('current_department_id', $managedDepartments)
-            ->where('status', 'in_review')
+            ->whereIn('status', ['in_review', 'in_progress'])
             ->whereNull('current_user_id')
             ->firstOrFail();
 

@@ -12,6 +12,7 @@ class Settings extends Model
         'value',
         'type',
         'description',
+        'description_ar',
         'group'
     ];
 

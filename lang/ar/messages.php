@@ -20,4 +20,16 @@ return [
     'request_completed' => 'تم إكمال الطلب بنجاح',
     'request_returned_to_previous' => 'تمت إعادة الطلب إلى القسم السابق للمراجعة',
     'evaluation_submitted' => 'تم تقديم التقييم بنجاح',
+
+    // Status translations
+    'status' => [
+        'draft' => 'مسودة',
+        'pending' => 'قيد الانتظار',
+        'in_review' => 'قيد المراجعة',
+        'in_progress' => 'قيد التنفيذ',
+        'need_more_details' => 'يحتاج مزيد من التفاصيل',
+        'approved' => 'موافق عليه',
+        'rejected' => 'مرفوض',
+        'completed' => 'مكتمل',
+    ],
 ];
