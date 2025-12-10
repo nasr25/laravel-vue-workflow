@@ -491,6 +491,7 @@ class RequestController extends Controller
         $stats = [
             'totalRequests' => (clone $baseQuery)->count(),
             'pendingRequests' => (clone $baseQuery)->whereIn('status', ['pending', 'in_review'])->count(),
+            'inProgressRequests' => (clone $baseQuery)->where('status', 'in_progress')->count(),
             'approvedRequests' => (clone $baseQuery)->where('status', 'approved')->count(),
             'rejectedRequests' => (clone $baseQuery)->where('status', 'rejected')->count(),
             'draftRequests' => (clone $baseQuery)->where('status', 'draft')->count(),
