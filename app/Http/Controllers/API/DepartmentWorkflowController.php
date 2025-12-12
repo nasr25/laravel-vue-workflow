@@ -187,12 +187,20 @@ class DepartmentWorkflowController extends Controller
         // Store the original status before updating
         $originalStatus = $userRequest->status;
 
+        // Determine if this is a return (employee was previously assigned) or initial assignment
+        $isReturn = $userRequest->last_assigned_user_id && $userRequest->last_assigned_user_id == $employee->id;
+        $newStatus = $isReturn ? 'missing_requirement' : 'in_progress';
+
         $userRequest->update([
             'current_user_id' => $employee->id,
-            'status' => 'in_progress',
+            'status' => $newStatus,
         ]);
 
         // Create transition record
+        $transitionComment = $isReturn
+            ? ($validated['comments'] ?? "Returned to {$employee->name} for missing requirements")
+            : ($validated['comments'] ?? "Assigned to {$employee->name}");
+
         \App\Models\RequestTransition::create([
             'request_id' => $userRequest->id,
             'to_department_id' => $userRequest->current_department_id,
@@ -200,8 +208,8 @@ class DepartmentWorkflowController extends Controller
             'actioned_by' => $user->id,
             'action' => 'assign',
             'from_status' => $originalStatus,
-            'to_status' => 'in_progress',
-            'comments' => $validated['comments'] ?? "Assigned to {$employee->name}",
+            'to_status' => $newStatus,
+            'comments' => $transitionComment,
         ]);
 
         // Send notifications - notify the assigned employee and all stakeholders

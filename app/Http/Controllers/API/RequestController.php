@@ -21,7 +21,7 @@ class RequestController extends Controller
 
     public function getDepartments()
     {
-        $departments = \App\Models\Department::select('id', 'name')->get();
+        $departments = \App\Models\Department::select('id', 'name', 'is_department_a')->get();
 
         return response()->json([
             'departments' => $departments
@@ -59,6 +59,8 @@ class RequestController extends Controller
             'employees.*.employee_email' => 'nullable|email',
             'employees.*.employee_department' => 'nullable|string',
             'employees.*.employee_title' => 'nullable|string',
+        ], [
+            'idea_ownership_type.in' => __('validation.idea_ownership_type_invalid'),
         ]);
 
         // Determine initial department and status
@@ -195,6 +197,8 @@ class RequestController extends Controller
             'employees.*.employee_email' => 'nullable|email',
             'employees.*.employee_department' => 'nullable|string',
             'employees.*.employee_title' => 'nullable|string',
+        ], [
+            'idea_ownership_type.in' => __('validation.idea_ownership_type_invalid'),
         ]);
 
         // Handle idea_type conversion to idea_type_id
