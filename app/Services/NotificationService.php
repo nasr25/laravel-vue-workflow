@@ -20,6 +20,7 @@ class NotificationService
     const TYPE_REQUEST_APPROVED = 'request_approved';
     const TYPE_REQUEST_REJECTED = 'request_rejected';
     const TYPE_REQUEST_COMPLETED = 'request_completed';
+    const TYPE_SLA_REMINDER = 'sla_reminder';
 
     /**
      * Send notification to a user
@@ -88,6 +89,7 @@ class NotificationService
                     'request_approved' => true,
                     'request_rejected' => true,
                     'request_completed' => true,
+                    'sla_reminder' => true,
                 ],
                 'notification' => [
                     'request_created' => true,
@@ -96,6 +98,7 @@ class NotificationService
                     'request_approved' => true,
                     'request_rejected' => true,
                     'request_completed' => true,
+                    'sla_reminder' => true,
                 ],
             ];
         }

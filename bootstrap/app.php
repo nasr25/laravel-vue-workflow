@@ -22,6 +22,12 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\SetLocale::class,
         ]);
     })
+    ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
+        // Check for overdue requests daily at 9:00 AM
+        $schedule->command('app:check-overdue-requests')
+            ->dailyAt('09:00')
+            ->withoutOverlapping();
+    })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();

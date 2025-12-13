@@ -54,17 +54,22 @@ class DepartmentWorkflowController extends Controller
             ], 403);
         }
 
-        // Get requests in user's departments
-        // If user is a manager, show all requests in their department
-        // If user is an employee, show all requests (both assigned and unassigned)
-        $query = Request::whereIn('current_department_id', $userDepartments)
-            ->whereIn('status', ['in_review', 'in_progress']);
-
         // Check if user is a manager in any of their departments
         $isManager = $user->departments()
             ->whereIn('departments.id', $userDepartments)
             ->where('department_user.role', 'manager')
             ->exists();
+
+        // Get requests in user's departments
+        // If user is a manager, show all requests in their department
+        // If user is an employee, show all requests (both assigned and unassigned)
+        // Managers also see 'pending' status (accepted for later) and 'missing_requirement'
+        $statusFilter = $isManager
+            ? ['in_review', 'in_progress', 'pending', 'missing_requirement']
+            : ['in_review', 'in_progress', 'missing_requirement'];
+
+        $query = Request::whereIn('current_department_id', $userDepartments)
+            ->whereIn('status', $statusFilter);
 
         // Both managers and employees can see all requests in their department
         // This allows employees to see unassigned requests that managers might assign to them
@@ -194,6 +199,8 @@ class DepartmentWorkflowController extends Controller
         $userRequest->update([
             'current_user_id' => $employee->id,
             'status' => $newStatus,
+            'current_stage_started_at' => now(),
+            'sla_reminder_sent_at' => null,
         ]);
 
         // Create transition record
@@ -272,6 +279,9 @@ class DepartmentWorkflowController extends Controller
         // Return to manager (unassign from employee, keep in same department)
         $userRequest->update([
             'current_user_id' => null, // Unassign from employee, goes back to manager
+            'status' => 'in_review',
+            'current_stage_started_at' => now(),
+            'sla_reminder_sent_at' => null,
         ]);
 
         // Create transition record
@@ -345,6 +355,8 @@ class DepartmentWorkflowController extends Controller
             'current_department_id' => $deptA->id,
             'current_user_id' => null,
             'status' => 'in_review', // Keep as in_review since it's coming back for validation
+            'current_stage_started_at' => now(),
+            'sla_reminder_sent_at' => null,
         ]);
 
         // Create transition record
@@ -536,6 +548,80 @@ class DepartmentWorkflowController extends Controller
 
         return response()->json([
             'message' => 'Idea accepted for later implementation',
+            'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
+        ]);
+    }
+
+    /**
+     * Activate/implement a previously accepted idea
+     */
+    public function activateAcceptedIdea($requestId, HttpRequest $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'comments' => 'nullable|string',
+        ]);
+
+        // Get departments where user is manager
+        $managedDepartments = $user->departments()
+            ->where('department_user.role', 'manager')
+            ->pluck('departments.id');
+
+        if ($managedDepartments->isEmpty()) {
+            return response()->json([
+                'message' => 'Only department managers can activate ideas'
+            ], 403);
+        }
+
+        $userRequest = Request::where('id', $requestId)
+            ->whereIn('current_department_id', $managedDepartments)
+            ->where('status', 'pending')
+            ->whereNotNull('expected_execution_date')
+            ->whereNull('current_user_id')
+            ->firstOrFail();
+
+        $previousStatus = $userRequest->status;
+
+        // Change status back to in_review so manager can assign to employee
+        $userRequest->update([
+            'status' => 'in_review',
+            'current_stage_started_at' => now(),
+            'sla_reminder_sent_at' => null,
+        ]);
+
+        // Create transition record
+        \App\Models\RequestTransition::create([
+            'request_id' => $userRequest->id,
+            'from_department_id' => $userRequest->current_department_id,
+            'to_department_id' => $userRequest->current_department_id,
+            'actioned_by' => $user->id,
+            'action' => 'activate',
+            'from_status' => $previousStatus,
+            'to_status' => 'in_review',
+            'comments' => $validated['comments'] ?? 'Idea activated for implementation',
+        ]);
+
+        // Send notifications to all stakeholders
+        $this->notificationService->notifyRequestStakeholders(
+            $userRequest->fresh(['user', 'currentDepartment']),
+            NotificationService::TYPE_REQUEST_STATUS_CHANGED,
+            'Idea Activated for Implementation',
+            "Request '{$userRequest->title}' has been activated for implementation by {$user->name}.",
+            ['activated_by' => $user->name, 'comments' => $validated['comments'] ?? '']
+        );
+
+        // Log idea activation
+        AuditLog::log([
+            'user_id' => $user->id,
+            'action' => 'activated',
+            'model_type' => 'Request',
+            'model_id' => $userRequest->id,
+            'description' => "Manager activated idea '{$userRequest->title}' for implementation",
+        ]);
+
+        return response()->json([
+            'message' => 'Idea activated successfully. You can now assign it to an employee.',
             'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
         ]);
     }

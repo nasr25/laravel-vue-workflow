@@ -375,6 +375,8 @@ class RequestController extends Controller
             'current_department_id' => $departmentA->id,
             'status' => 'pending',
             'submitted_at' => now(),
+            'current_stage_started_at' => now(),
+            'sla_reminder_sent_at' => null,
         ]);
 
         // Create transition record

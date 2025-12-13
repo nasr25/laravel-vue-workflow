@@ -129,6 +129,32 @@ class EmailNotificationService
                 'returned_by' => 'Person who returned',
                 'returned_at' => 'Return date',
                 'reason' => 'Return reason'
+            ],
+            'sla.dept_a_assign_path' => [
+                'manager_name' => 'Manager name',
+                'submitted_at' => 'Request submission date',
+                'days_waiting' => 'Number of days waiting',
+                'sla_days' => 'SLA threshold in days'
+            ],
+            'sla.manager_assign_employee' => [
+                'manager_name' => 'Manager name',
+                'department' => 'Department name',
+                'days_waiting' => 'Number of days waiting',
+                'sla_days' => 'SLA threshold in days'
+            ],
+            'sla.employee_work_overdue' => [
+                'manager_name' => 'Manager name',
+                'department' => 'Department name',
+                'employee_name' => 'Assigned employee name',
+                'assigned_at' => 'Assignment date',
+                'days_waiting' => 'Number of days in progress',
+                'sla_days' => 'SLA threshold in days'
+            ],
+            'sla.final_validation_overdue' => [
+                'manager_name' => 'Manager name',
+                'returned_at' => 'Date returned for validation',
+                'days_waiting' => 'Number of days waiting',
+                'sla_days' => 'SLA threshold in days'
             ]
         ];
 

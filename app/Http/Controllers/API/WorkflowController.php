@@ -203,6 +203,8 @@ class WorkflowController extends Controller
             'workflow_path_id' => $workflowPath->id,
             'current_department_id' => $firstStep->department_id,
             'status' => 'in_review',
+            'current_stage_started_at' => now(),
+            'sla_reminder_sent_at' => null,
         ]);
 
         // Create transition record
@@ -513,6 +515,8 @@ class WorkflowController extends Controller
             'current_department_id' => $previousDepartmentId,
             'status' => 'in_review',
             'current_user_id' => null, // Unassign from any employee
+            'current_stage_started_at' => now(),
+            'sla_reminder_sent_at' => null,
         ]);
 
         // Create transition record

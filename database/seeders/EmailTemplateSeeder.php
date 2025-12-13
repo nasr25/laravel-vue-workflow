@@ -167,6 +167,48 @@ class EmailTemplateSeeder extends Seeder
                 'body_ar' => "عزيزي المدير،\n\nالطلب \"{request_title}\" يتطلب موافقتك.\n\nرقم الطلب: {request_id}\nمقدم من: {user_name}\nتمت المعالجة بواسطة: {employee_name}\nالقسم: {department}\nالحالة: {status}\n\nيرجى المراجعة وتقديم قرار الموافقة الخاص بك.\n\nمع أطيب التحيات،\nنظام إدارة سير العمل",
                 'description' => 'Sent to manager when approval is needed',
                 'is_active' => true
+            ],
+
+            // SLA Reminder Templates
+            [
+                'event_type' => 'sla.dept_a_assign_path',
+                'recipient_type' => 'admin',
+                'subject_en' => 'SLA Reminder: Workflow Path Assignment Overdue - #{request_id}',
+                'subject_ar' => 'تذكير SLA: تأخر تعيين مسار العمل - #{request_id}',
+                'body_en' => "Dear {manager_name},\n\nThis is an SLA reminder for request \"{request_title}\".\n\nRequest ID: {request_id}\nSubmitted by: {user_name}\nSubmitted on: {submitted_at}\nDays waiting: {days_waiting}\nSLA threshold: {sla_days} days\nAction required: Assign workflow path\n\nThis request has been waiting for workflow path assignment and is now overdue according to our SLA policy. Please take action as soon as possible to maintain service quality.\n\nBest regards,\nWorkflow Management System",
+                'body_ar' => "عزيزي {manager_name}،\n\nهذا تذكير SLA للطلب \"{request_title}\".\n\nرقم الطلب: {request_id}\nمقدم من: {user_name}\nتاريخ التقديم: {submitted_at}\nأيام الانتظار: {days_waiting}\nحد SLA: {sla_days} أيام\nالإجراء المطلوب: تعيين مسار العمل\n\nهذا الطلب في انتظار تعيين مسار العمل وأصبح متأخراً وفقاً لسياسة SLA الخاصة بنا. يرجى اتخاذ إجراء في أقرب وقت ممكن للحفاظ على جودة الخدمة.\n\nمع أطيب التحيات،\nنظام إدارة سير العمل",
+                'description' => 'Sent to Department A managers when request is overdue for workflow path assignment',
+                'is_active' => true
+            ],
+            [
+                'event_type' => 'sla.manager_assign_employee',
+                'recipient_type' => 'manager',
+                'subject_en' => 'SLA Reminder: Employee Assignment Overdue - #{request_id}',
+                'subject_ar' => 'تذكير SLA: تأخر تعيين الموظف - #{request_id}',
+                'body_en' => "Dear {manager_name},\n\nThis is an SLA reminder for request \"{request_title}\" in {department}.\n\nRequest ID: {request_id}\nSubmitted by: {user_name}\nCurrent status: Waiting for employee assignment\nDays waiting: {days_waiting}\nSLA threshold: {sla_days} days\nAction required: Assign employee to work on request\n\nThis request has been waiting for employee assignment and is now overdue. Please assign an appropriate team member to handle this request.\n\nBest regards,\nWorkflow Management System",
+                'body_ar' => "عزيزي {manager_name}،\n\nهذا تذكير SLA للطلب \"{request_title}\" في {department}.\n\nرقم الطلب: {request_id}\nمقدم من: {user_name}\nالحالة الحالية: في انتظار تعيين الموظف\nأيام الانتظار: {days_waiting}\nحد SLA: {sla_days} أيام\nالإجراء المطلوب: تعيين موظف للعمل على الطلب\n\nهذا الطلب في انتظار تعيين موظف وأصبح متأخراً. يرجى تعيين عضو مناسب من الفريق لمعالجة هذا الطلب.\n\nمع أطيب التحيات،\nنظام إدارة سير العمل",
+                'description' => 'Sent to department managers when employee assignment is overdue',
+                'is_active' => true
+            ],
+            [
+                'event_type' => 'sla.employee_work_overdue',
+                'recipient_type' => 'manager',
+                'subject_en' => 'SLA Reminder: Employee Work Overdue - #{request_id}',
+                'subject_ar' => 'تذكير SLA: تأخر عمل الموظف - #{request_id}',
+                'body_en' => "Dear {manager_name},\n\nThis is an SLA reminder for request \"{request_title}\" in {department}.\n\nRequest ID: {request_id}\nSubmitted by: {user_name}\nAssigned to: {employee_name}\nAssigned on: {assigned_at}\nDays in progress: {days_waiting}\nSLA threshold: {sla_days} days\nAction required: Follow up with assigned employee\n\nThe assigned employee has been working on this request for longer than the SLA allows. Please follow up with {employee_name} to ensure timely completion.\n\nBest regards,\nWorkflow Management System",
+                'body_ar' => "عزيزي {manager_name}،\n\nهذا تذكير SLA للطلب \"{request_title}\" في {department}.\n\nرقم الطلب: {request_id}\nمقدم من: {user_name}\nمعين لـ: {employee_name}\nتاريخ التعيين: {assigned_at}\nأيام العمل: {days_waiting}\nحد SLA: {sla_days} أيام\nالإجراء المطلوب: المتابعة مع الموظف المعين\n\nالموظف المعين يعمل على هذا الطلب لفترة أطول من المسموح به في SLA. يرجى المتابعة مع {employee_name} لضمان الإنجاز في الوقت المناسب.\n\nمع أطيب التحيات،\nنظام إدارة سير العمل",
+                'description' => 'Sent to department managers when employee work is taking too long',
+                'is_active' => true
+            ],
+            [
+                'event_type' => 'sla.final_validation_overdue',
+                'recipient_type' => 'admin',
+                'subject_en' => 'SLA Reminder: Final Validation Overdue - #{request_id}',
+                'subject_ar' => 'تذكير SLA: تأخر التحقق النهائي - #{request_id}',
+                'body_en' => "Dear {manager_name},\n\nThis is an SLA reminder for request \"{request_title}\".\n\nRequest ID: {request_id}\nSubmitted by: {user_name}\nReturned for validation on: {returned_at}\nDays waiting: {days_waiting}\nSLA threshold: {sla_days} days\nAction required: Complete final validation\n\nThis request has been returned for final validation and is now overdue. Please review and complete the validation process (approve, reject, or return to previous department).\n\nBest regards,\nWorkflow Management System",
+                'body_ar' => "عزيزي {manager_name}،\n\nهذا تذكير SLA للطلب \"{request_title}\".\n\nرقم الطلب: {request_id}\nمقدم من: {user_name}\nتاريخ الإرجاع للتحقق: {returned_at}\nأيام الانتظار: {days_waiting}\nحد SLA: {sla_days} أيام\nالإجراء المطلوب: إكمال التحقق النهائي\n\nتم إرجاع هذا الطلب للتحقق النهائي وأصبح متأخراً. يرجى المراجعة وإكمال عملية التحقق (الموافقة، الرفض، أو الإرجاع إلى القسم السابق).\n\nمع أطيب التحيات،\nنظام إدارة سير العمل",
+                'description' => 'Sent to Department A managers when final validation is overdue',
+                'is_active' => true
             ]
         ];
 

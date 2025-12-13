@@ -27,12 +27,16 @@ class Request extends Model
         'submitted_at',
         'completed_at',
         'expected_execution_date',
+        'current_stage_started_at',
+        'sla_reminder_sent_at',
     ];
 
     protected $casts = [
         'submitted_at' => 'datetime',
         'completed_at' => 'datetime',
         'expected_execution_date' => 'date',
+        'current_stage_started_at' => 'datetime',
+        'sla_reminder_sent_at' => 'datetime',
     ];
 
     public function user()
