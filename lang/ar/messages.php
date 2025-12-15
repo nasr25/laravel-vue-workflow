@@ -20,6 +20,7 @@ return [
     'request_completed' => 'تم إكمال الطلب بنجاح',
     'request_returned_to_previous' => 'تمت إعادة الطلب إلى القسم السابق للمراجعة',
     'evaluation_submitted' => 'تم تقديم التقييم بنجاح',
+    "accountIsInactive" => "الحساب غير نشط",
 
     // Status translations
     'status' => [

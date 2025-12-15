@@ -10,6 +10,7 @@ use App\Services\ExternalUserLookupService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Spatie\Permission\Models\Role;
 
 class AdminController extends Controller
 {
@@ -179,15 +180,19 @@ class AdminController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'username' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:6',
+            // 'password' => 'required|string|min:6',
             'role' => ['required', Rule::in(['admin', 'manager', 'employee', 'user'])],
             'is_active' => 'boolean',
         ]);
 
-        $validated['password'] = Hash::make($validated['password']);
+        // $validated['password'] = Hash::make($validated['password']);
 
         $user = User::create($validated);
+
+        $role = Role::where('name', 'LIKE', $validated['role'])->first(); 
+        $user->assignRole($role);
 
         // Log user creation
         AuditLog::log([
@@ -215,6 +220,7 @@ class AdminController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'username' => 'required|string|max:255',
             'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
             'password' => 'nullable|string|min:6',
             'role' => ['required', Rule::in(['admin', 'manager', 'employee', 'user'])],

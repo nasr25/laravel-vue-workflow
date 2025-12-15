@@ -34,14 +34,9 @@ class ExternalUserLookupService
             }
 
             // Make the API request
-            $response = Http::timeout($this->timeout)
-                ->withHeaders([
-                    'Authorization' => 'Bearer ' . $this->apiKey,
-                    'Accept' => 'application/json',
-                ])
-                ->get($this->apiUrl, [
-                    'search' => $query,
-                ]);
+            $response = \Http::withOptions(['verify' => false])->withHeaders(['Accept-Language' => 'ar'])->get(env('LDAP_SEARCH_API'), [
+                'search' => $query,
+            ]);
 
             // Check if request was successful
             if ($response->successful()) {

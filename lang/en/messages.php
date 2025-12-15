@@ -20,6 +20,7 @@ return [
     'request_completed' => 'Request completed successfully',
     'request_returned_to_previous' => 'Request returned to previous department for revision',
     'evaluation_submitted' => 'Evaluation submitted successfully',
+    "accountIsInactive" => "Account is inactive",
 
     // Status translations
     'status' => [

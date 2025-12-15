@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
+use Spatie\Permission\Models\Role;
 
 class AuthController extends Controller
 {
@@ -45,6 +46,7 @@ class AuthController extends Controller
         ], 201);
     }
 
+    /*
     public function login(Request $request)
     {
         $validated = $request->validate([
@@ -87,6 +89,111 @@ class AuthController extends Controller
             'permissions' => $user->getAllPermissions()->pluck('name'),
             'roles' => $user->getRoleNames()
         ]);
+    }
+    */
+
+    public function login(Request $request)
+    {
+        $response = \Http::withOptions(['verify' => false])
+                ->withHeaders(['Accept-Language' => 'ar'])
+                ->timeout(10)
+                ->post(env('LDAP_LOGIN_API'), [
+                    'username' => $request->username,
+                    'password' => $request->password,
+                ]);
+
+        if($response && $response['status'] == true) {
+            $user = User::where('name', $request->username)->orWhere('username', $request->username)->first();            
+
+            if ($user && !$user->is_active) {
+                return response()->json([
+                    'message' => __('messages.accountIsInactive')
+                ], 403);
+            }
+
+            if(!$user) {
+                $user = User::create([
+                    'name' => $response['data']['username'] ?? 'N/A',
+                    'username' => $response['data']['name_en'] ?? 'N/A',
+                    'email' => $response['data']['email'] ?? 'N/A',
+                    'role' => 'user',
+                    'is_active' => true,
+                ]);
+
+                $role = Role::where('name', 'LIKE', $validated['role'])->first(); 
+                $user->assignRole($role);
+            }
+
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            // Log user login
+            AuditLog::log([
+                'user_id' => $user->id,
+                'action' => 'logged_in',
+                'model_type' => 'User',
+                'model_id' => $user->id,
+                'description' => "User {$user->name_en} logged in",
+            ]);
+
+            // Load user with relationships and permissions
+            $user->load(['departments', 'roles.permissions']);
+
+            return response()->json([
+                'user' => $user,
+                'token' => $token,
+                'token_type' => 'Bearer',
+                'permissions' => $user->getAllPermissions()->pluck('name'),
+                'roles' => $user->getRoleNames()
+            ]);
+
+
+        } else {
+            $user = User::where('email', $request->username)->orWhere('name', $request->username)->orWhere('username', $request->username)->first();
+            
+            if($user) {
+                if($user->role == 'admin' || $user->email === 'manager-a@gmail.com') {
+
+                    if (!$user || !Hash::check($request->password, $user->password)) {
+                        return response()->json([
+                            'message' => 'Invalid credentials'
+                        ], 401);
+                    }
+
+                    if (!$user->is_active) {
+                        return response()->json([
+                            'message' => 'Account is inactive'
+                        ], 403);
+                    }
+
+                    $token = $user->createToken('auth_token')->plainTextToken;
+
+                    // Log user login
+                    AuditLog::log([
+                        'user_id' => $user->id,
+                        'action' => 'logged_in',
+                        'model_type' => 'User',
+                        'model_id' => $user->id,
+                        'description' => "User {$user->name} logged in",
+                    ]);
+
+                    // Load user with relationships and permissions
+                    $user->load(['departments', 'roles.permissions']);
+
+                    return response()->json([
+                        'user' => $user,
+                        'token' => $token,
+                        'token_type' => 'Bearer',
+                        'permissions' => $user->getAllPermissions()->pluck('name'),
+                        'roles' => $user->getRoleNames()
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'message' => $response['message']
+            ], $response['code']);
+        }
+
     }
 
     public function logout(Request $request)
