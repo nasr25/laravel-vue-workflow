@@ -223,7 +223,7 @@ class AdminController extends Controller
             'username' => 'required|string|max:255',
             'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
             'password' => 'nullable|string|min:6',
-            'role' => ['required', Rule::in(['admin', 'manager', 'employee', 'user'])],
+            'role' => ['required', Rule::in(['admin', 'supervisor', 'manager', 'employee', 'user'])],
             'is_active' => 'boolean',
         ]);
 
@@ -234,6 +234,11 @@ class AdminController extends Controller
         }
 
         $user->update($validated);
+
+        if (isset($validated['role']) && $validated['role'] !== $user->getRoleNames()->first()) {
+            $newRole = Role::where('name', 'LIKE', $validated['role'])->first();
+            $user->syncRoles($newRole);
+        }
 
         // Log user update
         AuditLog::log([
@@ -272,6 +277,8 @@ class AdminController extends Controller
                 'message' => 'Cannot delete user with active assigned requests'
             ], 400);
         }
+
+        $user->removeRole($user->getRoleNames()->first());
 
         $userName = $user->name;
         $userEmail = $user->email;

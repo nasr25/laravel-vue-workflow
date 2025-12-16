@@ -114,13 +114,13 @@ class AuthController extends Controller
             if(!$user) {
                 $user = User::create([
                     'name' => $response['data']['username'] ?? 'N/A',
-                    'username' => $response['data']['name_en'] ?? 'N/A',
+                    'username' => $response['data']['full_name'] ?? 'N/A',
                     'email' => $response['data']['email'] ?? 'N/A',
                     'role' => 'user',
                     'is_active' => true,
                 ]);
 
-                $role = Role::where('name', 'LIKE', $validated['role'])->first(); 
+                $role = Role::where('name', 'LIKE', 'user')->first(); 
                 $user->assignRole($role);
             }
 
@@ -151,7 +151,7 @@ class AuthController extends Controller
             $user = User::where('email', $request->username)->orWhere('name', $request->username)->orWhere('username', $request->username)->first();
             
             if($user) {
-                if($user->role == 'admin' || $user->email === 'manager-a@gmail.com') {
+                if($user->role == 'admin' || $user->role == 'supervisor') {
 
                     if (!$user || !Hash::check($request->password, $user->password)) {
                         return response()->json([

@@ -45,7 +45,7 @@ class DatabaseSeeder extends Seeder
             'name' => 'Alice Manager',
             'email' => 'manager.a@workflow.com',
             'password' => Hash::make('password'),
-            'role' => 'manager',
+            'role' => 'supervisor',
             'is_active' => true,
         ]);
         $deptA->users()->attach($managerA->id, ['role' => 'manager']);

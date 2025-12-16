@@ -132,7 +132,7 @@ class RolesAndPermissionsSeeder extends Seeder
         ]);
 
         // 3. Department A Manager Role
-        $deptAManager = Role::create(['name' => 'Department A Manager', 'guard_name' => 'sanctum']);
+        $deptAManager = Role::create(['name' => 'Supervisor', 'guard_name' => 'sanctum']);
         $deptAManager->givePermissionTo([
             'request.view-all',
             'workflow.view-pending',
@@ -148,7 +148,7 @@ class RolesAndPermissionsSeeder extends Seeder
         ]);
 
         // 4. Department Manager Role
-        $deptManager = Role::create(['name' => 'Department Manager', 'guard_name' => 'sanctum']);
+        $deptManager = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
         $deptManager->givePermissionTo([
             'request.view-own',
             'department.view-requests',
@@ -159,7 +159,7 @@ class RolesAndPermissionsSeeder extends Seeder
         ]);
 
         // 5. Department Employee Role
-        $deptEmployee = Role::create(['name' => 'Department Employee', 'guard_name' => 'sanctum']);
+        $deptEmployee = Role::create(['name' => 'Employee', 'guard_name' => 'sanctum']);
         $deptEmployee->givePermissionTo([
             'request.view-own',
             'department.view-requests',
@@ -209,14 +209,14 @@ class RolesAndPermissionsSeeder extends Seeder
                         ->exists();
 
                     if ($isDeptAManager) {
-                        $user->assignRole('Department A Manager');
+                        $user->assignRole('Supervisor');
                     } else {
-                        $user->assignRole('Department Manager');
+                        $user->assignRole('Manager');
                     }
                     break;
 
                 case 'employee':
-                    $user->assignRole('Department Employee');
+                    $user->assignRole('Employee');
                     break;
 
                 case 'user':
