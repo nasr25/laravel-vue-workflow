@@ -67,7 +67,6 @@ class UserSettingsController extends Controller
         try {
             $validator = Validator::make($request->all(), [
                 'settings' => 'required|array',
-                'settings.email' => 'required|array',
                 'settings.notification' => 'required|array',
             ]);
 
@@ -81,9 +80,20 @@ class UserSettingsController extends Controller
 
             $user = Auth::user();
 
+            // Prepare settings with forced email notifications (always enabled)
+            $settings = $request->settings;
+            $settings['email'] = [
+                'request_created' => true,
+                'request_status_changed' => true,
+                'request_assigned' => true,
+                'request_approved' => true,
+                'request_rejected' => true,
+                'request_completed' => true
+            ];
+
             $userSetting = UserSetting::updateOrCreate(
                 ['user_id' => $user->id],
-                ['settings' => json_encode($request->settings)]
+                ['settings' => json_encode($settings)]
             );
 
             return response()->json([

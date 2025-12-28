@@ -21,6 +21,7 @@ class Request extends Model
         'current_user_id',
         'workflow_path_id',
         'status',
+        'progress_percentage',
         'idea_type',
         'rejection_reason',
         'additional_details',

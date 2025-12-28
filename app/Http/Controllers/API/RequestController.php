@@ -47,7 +47,7 @@ class RequestController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:200',
             'description' => 'required|string|min:25',
-            'idea_type' => 'required|string', // Can be idea type ID or old format
+            'idea_type' => 'nullable|string', // Can be idea type ID or old format (now optional)
             'department' => 'required|string', // Can be department ID or "unknown"
             'benefits' => 'nullable|string',
             'status' => 'nullable|string|in:draft,pending',
@@ -81,10 +81,16 @@ class RequestController extends Controller
             }
         }
 
+        // Log the ownership type being saved
+        \Log::info('Creating request with idea_ownership_type', [
+            'received_idea_ownership_type' => $validated['idea_ownership_type'] ?? 'NOT SET',
+            'saving_as_idea_type' => $validated['idea_ownership_type'] ?? 'individual'
+        ]);
+
         $userRequest = Request::create([
             'title' => $validated['title'],
             'description' => $validated['description'],
-            'idea_type_id' => (int) $validated['idea_type'], // Store idea type ID
+            'idea_type_id' => !empty($validated['idea_type']) ? (int) $validated['idea_type'] : null, // Store idea type ID (optional)
             'department_id' => $selectedDepartmentId, // Store selected department
             'benefits' => $validated['benefits'] ?? null,
             'user_id' => $request->user()->id,
@@ -92,6 +98,12 @@ class RequestController extends Controller
             'idea_type' => $validated['idea_ownership_type'] ?? 'individual',
             'current_department_id' => $currentDepartmentId,
             'submitted_at' => $status === 'pending' ? now() : null,
+        ]);
+
+        // Log what was actually saved
+        \Log::info('Request created with idea_type', [
+            'request_id' => $userRequest->id,
+            'saved_idea_type' => $userRequest->idea_type
         ]);
 
         // Handle employees if shared idea
@@ -164,8 +176,27 @@ class RequestController extends Controller
 
     public function show($id, HttpRequest $request)
     {
+        $user = $request->user();
+
+        // Get departments where user is manager or employee
+        $userDepartments = $user->departments()->pluck('departments.id');
+
+        // Find the request with permissions check
         $userRequest = Request::where('id', $id)
-            ->where('user_id', $request->user()->id)
+            ->where(function($query) use ($user, $userDepartments) {
+                // User owns the request
+                $query->where('user_id', $user->id)
+                    // OR user has permission to view all requests (admin)
+                    ->orWhere(function($q) use ($user) {
+                        if ($user->hasPermissionTo('request.view-all')) {
+                            $q->whereRaw('1=1'); // Allow all
+                        }
+                    })
+                    // OR request is in user's department (as manager or employee)
+                    ->orWhereIn('current_department_id', $userDepartments)
+                    // OR request is assigned to user
+                    ->orWhere('current_user_id', $user->id);
+            })
             ->with(['user', 'ideaType', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'employees', 'transitions.actionedBy', 'transitions.toDepartment'])
             ->firstOrFail();
 
@@ -204,7 +235,7 @@ class RequestController extends Controller
         // Handle idea_type conversion to idea_type_id
         $updateData = $validated;
         if (isset($validated['idea_type'])) {
-            $updateData['idea_type_id'] = (int) $validated['idea_type'];
+            $updateData['idea_type_id'] = !empty($validated['idea_type']) ? (int) $validated['idea_type'] : null;
             unset($updateData['idea_type']);
         }
 
@@ -458,11 +489,15 @@ class RequestController extends Controller
         $user = $request->user();
 
         // Base query - different for each role
+        // Note: Drafts from other users are excluded from statistics
         $baseQuery = null;
 
         if ($user->role === 'admin') {
-            // Admin sees all requests
-            $baseQuery = Request::query();
+            // Admin sees all non-draft requests + their own drafts
+            $baseQuery = Request::where(function($query) use ($user) {
+                $query->where('status', '!=', 'draft')
+                      ->orWhere('user_id', $user->id);
+            });
         } elseif ($user->role === 'manager') {
             // Check if manager is in Department A
             $managedDepartments = $user->departments()
@@ -471,25 +506,33 @@ class RequestController extends Controller
 
             $deptA = \App\Models\Department::where('is_department_a', true)->first();
 
-            // If user manages Department A, they see ALL requests
+            // If user manages Department A, they see ALL non-draft requests + their own drafts
             if ($deptA && $managedDepartments->contains($deptA->id)) {
-                $baseQuery = Request::query();
+                $baseQuery = Request::where(function($query) use ($user) {
+                    $query->where('status', '!=', 'draft')
+                          ->orWhere('user_id', $user->id);
+                });
             } else {
-                // Other managers see only requests in their departments
-                $baseQuery = Request::whereIn('current_department_id', $managedDepartments);
+                // Other managers see only non-draft requests in their departments + their own drafts
+                $baseQuery = Request::where(function($query) use ($user, $managedDepartments) {
+                    $query->where(function($q) use ($managedDepartments) {
+                        $q->whereIn('current_department_id', $managedDepartments)
+                          ->where('status', '!=', 'draft');
+                    })->orWhere('user_id', $user->id);
+                });
             }
         } elseif ($user->role === 'employee') {
-            // Employee sees:
-            // 1. Requests assigned to them
-            // 2. Requests in their departments
+            // Employee sees non-draft requests (assigned to them or in their departments) + their own drafts
             $userDepartments = $user->departments()->pluck('departments.id');
 
             $baseQuery = Request::where(function($query) use ($user, $userDepartments) {
-                $query->where('current_user_id', $user->id)
+                $query->where(function($q) use ($user, $userDepartments) {
+                    $q->where('current_user_id', $user->id)
                       ->orWhereIn('current_department_id', $userDepartments);
-            });
+                })->where('status', '!=', 'draft');
+            })->orWhere('user_id', $user->id);
         } else {
-            // Regular user sees only their own requests
+            // Regular user sees only their own requests (including drafts)
             $baseQuery = Request::where('user_id', $user->id);
         }
 

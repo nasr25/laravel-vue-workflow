@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('name_ar');
             $table->text('description')->nullable();
             $table->text('description_ar')->nullable();
-            $table->string('color')->default('#22c55e'); // Default green color
+            $table->string('color')->default('#02735E'); // Default GADD green color
             $table->boolean('is_active')->default(true);
             $table->integer('order')->default(0);
             $table->timestamps();

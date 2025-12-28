@@ -97,21 +97,56 @@ class DepartmentWorkflowController extends Controller
                 $request->requires_evaluation = $questionsCount > 0;
                 $request->path_evaluations = $evaluations;
 
-                // Check if request was previously assigned to an employee
-                $lastAssignment = \App\Models\RequestTransition::where('request_id', $request->id)
-                    ->where('action', 'assign')
+                // Check if request was previously assigned to an employee AND returned from employee
+                $lastTransitionToCurrentDept = \App\Models\RequestTransition::where('request_id', $request->id)
                     ->where('to_department_id', $request->current_department_id)
                     ->latest()
                     ->first();
 
-                $request->was_assigned_to_employee = $lastAssignment !== null;
-                $request->last_assigned_user_id = $lastAssignment?->to_user_id ?? null;
+                // Check if the last transition was from an employee
+                $returnedFromEmployee = false;
+                if ($lastTransitionToCurrentDept && $lastTransitionToCurrentDept->from_department_id === $request->current_department_id) {
+                    $action = $lastTransitionToCurrentDept->action;
+
+                    // Actions with 'employee_' prefix are definitely from employees
+                    if (in_array($action, ['employee_accept', 'employee_reject', 'employee_complete'])) {
+                        $returnedFromEmployee = true;
+                    }
+                    // For 'complete' action, check if user is an employee
+                    else if ($action === 'complete' && isset($lastTransitionToCurrentDept->actioned_by)) {
+                        $actionedByUser = \App\Models\User::find($lastTransitionToCurrentDept->actioned_by);
+                        $returnedFromEmployee = $actionedByUser && $actionedByUser->departments()
+                            ->where('departments.id', $request->current_department_id)
+                            ->where('department_user.role', 'employee')
+                            ->exists();
+                    }
+                }
+
+                // Check if employee completed the work (100% progress)
+                $employeeCompleted = $lastTransitionToCurrentDept
+                    && $lastTransitionToCurrentDept->action === 'employee_complete'
+                    && $request->progress_percentage === 100;
+
+                // Find the last employee assigned
+                $lastEmployeeAssignment = \App\Models\RequestTransition::where('request_id', $request->id)
+                    ->where('action', 'assign')
+                    ->where('to_department_id', $request->current_department_id)
+                    ->whereNotNull('to_user_id')
+                    ->latest()
+                    ->first();
+
+                $request->was_assigned_to_employee = $lastEmployeeAssignment !== null;
+                $request->last_assigned_user_id = $lastEmployeeAssignment?->to_user_id ?? null;
+                $request->returned_from_employee = $returnedFromEmployee;
+                $request->employee_completed = $employeeCompleted;
             } else {
                 $request->has_evaluated = true; // Employees don't need to evaluate
                 $request->requires_evaluation = false;
                 $request->path_evaluations = [];
                 $request->was_assigned_to_employee = false;
                 $request->last_assigned_user_id = null;
+                $request->returned_from_employee = false;
+                $request->employee_completed = false;
             }
         });
 
@@ -194,7 +229,8 @@ class DepartmentWorkflowController extends Controller
 
         // Determine if this is a return (employee was previously assigned) or initial assignment
         $isReturn = $userRequest->last_assigned_user_id && $userRequest->last_assigned_user_id == $employee->id;
-        $newStatus = $isReturn ? 'missing_requirement' : 'in_progress';
+        // Keep status as in_review so employee must explicitly accept/start before going to in_progress
+        $newStatus = $isReturn ? 'missing_requirement' : 'in_review';
 
         $userRequest->update([
             'current_user_id' => $employee->id,
@@ -307,6 +343,263 @@ class DepartmentWorkflowController extends Controller
 
         return response()->json([
             'message' => 'Request returned to department manager for review',
+            'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
+        ]);
+    }
+
+    /**
+     * Employee rejects request - returns to path manager
+     */
+    public function employeeRejectRequest($requestId, HttpRequest $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'comments' => 'required|string',
+        ]);
+
+        // Get departments where user is employee
+        $userDepartments = $user->departments()->pluck('departments.id');
+
+        $userRequest = Request::where('id', $requestId)
+            ->whereIn('current_department_id', $userDepartments)
+            ->where('current_user_id', $user->id) // Must be assigned to this employee
+            ->firstOrFail();
+
+        $previousStatus = $userRequest->status;
+        $previousDepartment = $userRequest->current_department_id;
+
+        // Reject and return to manager
+        $userRequest->update([
+            'current_user_id' => null, // Unassign from employee
+            'status' => 'in_review',
+            'progress_percentage' => 0, // Reset progress
+            'current_stage_started_at' => now(),
+            'sla_reminder_sent_at' => null,
+        ]);
+
+        // Create transition record
+        \App\Models\RequestTransition::create([
+            'request_id' => $userRequest->id,
+            'from_department_id' => $previousDepartment,
+            'to_department_id' => $previousDepartment,
+            'actioned_by' => $user->id,
+            'action' => 'employee_reject',
+            'from_status' => $previousStatus,
+            'to_status' => 'in_review',
+            'comments' => $validated['comments'],
+        ]);
+
+        // Send notifications
+        $this->notificationService->notifyRequestStakeholders(
+            $userRequest->fresh(['user', 'currentDepartment']),
+            NotificationService::TYPE_REQUEST_STATUS_CHANGED,
+            'Request Rejected by Employee',
+            "Request '{$userRequest->title}' has been rejected by employee {$user->name}. Comments: {$validated['comments']}",
+            ['rejected_by' => $user->name, 'comments' => $validated['comments']]
+        );
+
+        // Log
+        AuditLog::log([
+            'user_id' => $user->id,
+            'action' => 'rejected',
+            'model_type' => 'Request',
+            'model_id' => $userRequest->id,
+            'description' => "Employee rejected request '{$userRequest->title}': {$validated['comments']}",
+        ]);
+
+        return response()->json([
+            'message' => 'Request rejected and returned to manager',
+            'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
+        ]);
+    }
+
+    /**
+     * Employee accepts request - changes status to in_progress
+     */
+    public function employeeAcceptRequest($requestId, HttpRequest $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'comments' => 'nullable|string',
+        ]);
+
+        // Get departments where user is employee
+        $userDepartments = $user->departments()->pluck('departments.id');
+
+        $userRequest = Request::where('id', $requestId)
+            ->whereIn('current_department_id', $userDepartments)
+            ->where('current_user_id', $user->id) // Must be assigned to this employee
+            ->firstOrFail();
+
+        $previousStatus = $userRequest->status;
+
+        // Accept and set to in_progress
+        $userRequest->update([
+            'status' => 'in_progress',
+            'progress_percentage' => 0,
+            'current_stage_started_at' => now(),
+            'sla_reminder_sent_at' => null,
+        ]);
+
+        // Create transition record
+        \App\Models\RequestTransition::create([
+            'request_id' => $userRequest->id,
+            'from_department_id' => $userRequest->current_department_id,
+            'to_department_id' => $userRequest->current_department_id,
+            'to_user_id' => $user->id,
+            'actioned_by' => $user->id,
+            'action' => 'employee_accept',
+            'from_status' => $previousStatus,
+            'to_status' => 'in_progress',
+            'comments' => $validated['comments'] ?? 'Employee accepted the request and started working on it',
+        ]);
+
+        // Send notifications
+        $this->notificationService->notifyRequestStakeholders(
+            $userRequest->fresh(['user', 'currentDepartment']),
+            NotificationService::TYPE_REQUEST_STATUS_CHANGED,
+            'Request Accepted by Employee',
+            "Request '{$userRequest->title}' has been accepted by {$user->name} and is now in progress.",
+            ['accepted_by' => $user->name, 'comments' => $validated['comments'] ?? '']
+        );
+
+        // Log
+        AuditLog::log([
+            'user_id' => $user->id,
+            'action' => 'accepted',
+            'model_type' => 'Request',
+            'model_id' => $userRequest->id,
+            'description' => "Employee accepted request '{$userRequest->title}' and started working on it",
+        ]);
+
+        return response()->json([
+            'message' => 'Request accepted successfully',
+            'request' => $userRequest->load(['currentDepartment', 'workflowPath', 'currentAssignee'])
+        ]);
+    }
+
+    /**
+     * Employee updates progress on request
+     */
+    public function employeeUpdateProgress($requestId, HttpRequest $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'progress_percentage' => 'required|integer|min:0|max:100',
+            'comments' => 'required|string',
+        ]);
+
+        // Get departments where user is employee
+        $userDepartments = $user->departments()->pluck('departments.id');
+
+        $userRequest = Request::where('id', $requestId)
+            ->whereIn('current_department_id', $userDepartments)
+            ->where('current_user_id', $user->id) // Must be assigned to this employee
+            ->where('status', 'in_progress') // Must be in progress
+            ->firstOrFail();
+
+        $previousProgress = $userRequest->progress_percentage;
+
+        // Update progress
+        $userRequest->update([
+            'progress_percentage' => $validated['progress_percentage'],
+        ]);
+
+        // Create transition record for progress update
+        \App\Models\RequestTransition::create([
+            'request_id' => $userRequest->id,
+            'from_department_id' => $userRequest->current_department_id,
+            'to_department_id' => $userRequest->current_department_id,
+            'to_user_id' => $user->id,
+            'actioned_by' => $user->id,
+            'action' => 'progress_update',
+            'from_status' => 'in_progress',
+            'to_status' => 'in_progress',
+            'comments' => "Progress updated from {$previousProgress}% to {$validated['progress_percentage']}%: {$validated['comments']}",
+        ]);
+
+        // Send notifications
+        $this->notificationService->notifyRequestStakeholders(
+            $userRequest->fresh(['user', 'currentDepartment']),
+            NotificationService::TYPE_REQUEST_STATUS_CHANGED,
+            'Request Progress Updated',
+            "Request '{$userRequest->title}' progress updated to {$validated['progress_percentage']}% by {$user->name}. {$validated['comments']}",
+            ['updated_by' => $user->name, 'progress' => $validated['progress_percentage'], 'comments' => $validated['comments']]
+        );
+
+        return response()->json([
+            'message' => 'Progress updated successfully',
+            'request' => $userRequest->load(['currentDepartment', 'workflowPath', 'currentAssignee'])
+        ]);
+    }
+
+    /**
+     * Employee completes request - returns to path manager for validation
+     */
+    public function employeeCompleteRequest($requestId, HttpRequest $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'comments' => 'required|string',
+        ]);
+
+        // Get departments where user is employee
+        $userDepartments = $user->departments()->pluck('departments.id');
+
+        $userRequest = Request::where('id', $requestId)
+            ->whereIn('current_department_id', $userDepartments)
+            ->where('current_user_id', $user->id) // Must be assigned to this employee
+            ->where('status', 'in_progress') // Must be in progress
+            ->where('progress_percentage', 100) // Must be at 100%
+            ->firstOrFail();
+
+        $previousStatus = $userRequest->status;
+        $previousDepartment = $userRequest->current_department_id;
+
+        // Complete and return to manager for validation
+        $userRequest->update([
+            'current_user_id' => null, // Unassign from employee, goes back to manager
+            'status' => 'in_review',
+            'current_stage_started_at' => now(),
+            'sla_reminder_sent_at' => null,
+        ]);
+
+        // Create transition record
+        \App\Models\RequestTransition::create([
+            'request_id' => $userRequest->id,
+            'from_department_id' => $previousDepartment,
+            'to_department_id' => $previousDepartment,
+            'actioned_by' => $user->id,
+            'action' => 'employee_complete',
+            'from_status' => $previousStatus,
+            'to_status' => 'in_review',
+            'comments' => $validated['comments'],
+        ]);
+
+        // Send notifications
+        $this->notificationService->notifyRequestStakeholders(
+            $userRequest->fresh(['user', 'currentDepartment']),
+            NotificationService::TYPE_REQUEST_STATUS_CHANGED,
+            'Request Completed by Employee',
+            "Request '{$userRequest->title}' has been completed by {$user->name} and is ready for manager validation. Comments: {$validated['comments']}",
+            ['completed_by' => $user->name, 'comments' => $validated['comments']]
+        );
+
+        // Log
+        AuditLog::log([
+            'user_id' => $user->id,
+            'action' => 'completed',
+            'model_type' => 'Request',
+            'model_id' => $userRequest->id,
+            'description' => "Employee completed request '{$userRequest->title}' and returned to manager for validation",
+        ]);
+
+        return response()->json([
+            'message' => 'Request completed and returned to manager for validation',
             'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
         ]);
     }
