@@ -423,6 +423,7 @@ class DepartmentWorkflowController extends Controller
 
         $validated = $request->validate([
             'comments' => 'nullable|string',
+            'expected_execution_date' => 'required|date|after_or_equal:today',
         ]);
 
         // Get departments where user is employee
@@ -441,6 +442,7 @@ class DepartmentWorkflowController extends Controller
             'progress_percentage' => 0,
             'current_stage_started_at' => now(),
             'sla_reminder_sent_at' => null,
+            'expected_execution_date' => $validated['expected_execution_date'],
         ]);
 
         // Create transition record
