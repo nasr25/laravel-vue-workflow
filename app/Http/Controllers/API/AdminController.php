@@ -441,7 +441,6 @@ class AdminController extends Controller
 
     /**
      * Get all requests with full history (Admin only)
-     * Note: Drafts are excluded as they are private to the user who created them
      */
     public function getAllRequests(Request $request)
     {
@@ -457,7 +456,6 @@ class AdminController extends Controller
             'transitions.toDepartment',
             'transitions.fromDepartment'
         ])
-        ->where('status', '!=', 'draft') // Exclude draft requests
         ->orderBy('created_at', 'desc')
         ->get();
 
@@ -467,8 +465,7 @@ class AdminController extends Controller
     }
 
     /**
-     * Get single request with full history (Admin can see any non-draft request)
-     * Note: Drafts are excluded as they are private to the user who created them
+     * Get single request with full history (Admin can see any request)
      */
     public function getRequestDetail($id, Request $request)
     {
@@ -483,9 +480,7 @@ class AdminController extends Controller
             'transitions.actionedBy',
             'transitions.toDepartment',
             'transitions.fromDepartment'
-        ])
-        ->where('status', '!=', 'draft') // Exclude draft requests
-        ->findOrFail($id);
+        ])->findOrFail($id);
 
         return response()->json([
             'request' => $userRequest
