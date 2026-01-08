@@ -21,6 +21,7 @@ class Request extends Model
         'current_user_id',
         'workflow_path_id',
         'status',
+        'progress_percentage',
         'idea_type',
         'rejection_reason',
         'additional_details',
@@ -38,6 +39,15 @@ class Request extends Model
         'current_stage_started_at' => 'datetime',
         'sla_reminder_sent_at' => 'datetime',
     ];
+
+    // Add idea_ownership to the JSON output (since idea_type is overwritten by the ideaType relationship)
+    protected $appends = ['idea_ownership'];
+
+    // Accessor to expose the idea_type column as idea_ownership
+    public function getIdeaOwnershipAttribute()
+    {
+        return $this->attributes['idea_type'] ?? 'individual';
+    }
 
     public function user()
     {

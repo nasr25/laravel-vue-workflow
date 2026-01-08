@@ -85,6 +85,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/department/requests/{requestId}/accept-later', [DepartmentWorkflowController::class, 'acceptIdeaForLater']);
     Route::post('/department/requests/{requestId}/activate', [DepartmentWorkflowController::class, 'activateAcceptedIdea']);
     Route::post('/department/requests/{requestId}/reject', [DepartmentWorkflowController::class, 'rejectIdea']);
+    // Employee actions
+    Route::post('/department/requests/{requestId}/employee-reject', [DepartmentWorkflowController::class, 'employeeRejectRequest']);
+    Route::post('/department/requests/{requestId}/employee-accept', [DepartmentWorkflowController::class, 'employeeAcceptRequest']);
+    Route::post('/department/requests/{requestId}/employee-update-progress', [DepartmentWorkflowController::class, 'employeeUpdateProgress']);
+    Route::post('/department/requests/{requestId}/employee-complete', [DepartmentWorkflowController::class, 'employeeCompleteRequest']);
 
     // Admin routes (Admin only)
     // Department Management

@@ -105,9 +105,15 @@ class RolesAndPermissionsSeeder extends Seeder
         // 2. Admin Role - Full system access except system settings
         $admin = Role::create(['name' => 'Admin', 'guard_name' => 'sanctum']);
         $admin->givePermissionTo([
+            'request.view-own',
             'request.view-all',
+            'request.create',
+            'request.edit-own',
             'request.edit-all',
+            'request.delete-own',
             'request.delete-all',
+            'request.submit',
+            'request.resubmit',
             'user.view',
             'user.create',
             'user.edit',
@@ -134,7 +140,13 @@ class RolesAndPermissionsSeeder extends Seeder
         // 3. Department A Manager Role
         $deptAManager = Role::create(['name' => 'Supervisor', 'guard_name' => 'sanctum']);
         $deptAManager->givePermissionTo([
+            'request.view-own',
             'request.view-all',
+            'request.create',
+            'request.edit-own',
+            'request.delete-own',
+            'request.submit',
+            'request.resubmit',
             'workflow.view-pending',
             'workflow.assign-path',
             'workflow.complete-request',
@@ -151,6 +163,11 @@ class RolesAndPermissionsSeeder extends Seeder
         $deptManager = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
         $deptManager->givePermissionTo([
             'request.view-own',
+            'request.create',
+            'request.edit-own',
+            'request.delete-own',
+            'request.submit',
+            'request.resubmit',
             'department.view-requests',
             'department.assign-employee',
             'department.move-to-next',
@@ -162,6 +179,11 @@ class RolesAndPermissionsSeeder extends Seeder
         $deptEmployee = Role::create(['name' => 'Employee', 'guard_name' => 'sanctum']);
         $deptEmployee->givePermissionTo([
             'request.view-own',
+            'request.create',
+            'request.edit-own',
+            'request.delete-own',
+            'request.submit',
+            'request.resubmit',
             'department.view-requests',
             'department.process-request',
             'department.return-to-manager',

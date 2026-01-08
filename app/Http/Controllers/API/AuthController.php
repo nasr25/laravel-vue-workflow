@@ -95,6 +95,50 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
+        // First, check if user exists locally with a password (custom/test users)
+        $user = User::where('email', $request->username)
+            ->orWhere('name', $request->username)
+            ->orWhere('username', $request->username)
+            ->first();
+
+        // If user exists and has a password set, authenticate locally
+        if ($user && !empty($user->password)) {
+            if (!Hash::check($request->password, $user->password)) {
+                return response()->json([
+                    'message' => 'Invalid credentials'
+                ], 401);
+            }
+
+            if (!$user->is_active) {
+                return response()->json([
+                    'message' => 'Account is inactive'
+                ], 403);
+            }
+
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            // Log user login
+            AuditLog::log([
+                'user_id' => $user->id,
+                'action' => 'logged_in',
+                'model_type' => 'User',
+                'model_id' => $user->id,
+                'description' => "User {$user->name} logged in (local auth)",
+            ]);
+
+            // Load user with relationships and permissions
+            $user->load(['departments', 'roles.permissions']);
+
+            return response()->json([
+                'user' => $user,
+                'token' => $token,
+                'token_type' => 'Bearer',
+                'permissions' => $user->getAllPermissions()->pluck('name'),
+                'roles' => $user->getRoleNames()
+            ]);
+        }
+
+        // If no local user with password, try external API
         $response = \Http::withOptions(['verify' => false])
                 ->withHeaders(['Accept-Language' => 'ar'])
                 ->timeout(10)
@@ -104,7 +148,7 @@ class AuthController extends Controller
                 ]);
 
         if($response && $response['status'] == true) {
-            $user = User::where('name', $request->username)->orWhere('username', $request->username)->first();            
+            $user = User::where('name', $request->username)->orWhere('username', $request->username)->first();
 
             if ($user && !$user->is_active) {
                 return response()->json([
@@ -121,7 +165,7 @@ class AuthController extends Controller
                     'is_active' => true,
                 ]);
 
-                $role = Role::where('name', 'LIKE', 'user')->first(); 
+                $role = Role::where('name', 'LIKE', 'user')->first();
                 $user->assignRole($role);
 
                 if($response['data']['ou'] && $response['data']['ou'] != null) {
@@ -143,7 +187,7 @@ class AuthController extends Controller
                 'action' => 'logged_in',
                 'model_type' => 'User',
                 'model_id' => $user->id,
-                'description' => "User {$user->name_en} logged in",
+                'description' => "User {$user->name} logged in (external API)",
             ]);
 
             // Load user with relationships and permissions
@@ -156,55 +200,11 @@ class AuthController extends Controller
                 'permissions' => $user->getAllPermissions()->pluck('name'),
                 'roles' => $user->getRoleNames()
             ]);
-
-
         } else {
-            $user = User::where('email', $request->username)->orWhere('name', $request->username)->orWhere('username', $request->username)->first();
-            
-            if($user) {
-                if($user->role == 'admin' || $user->role == 'supervisor') {
-
-                    if (!$user || !Hash::check($request->password, $user->password)) {
-                        return response()->json([
-                            'message' => 'Invalid credentials'
-                        ], 401);
-                    }
-
-                    if (!$user->is_active) {
-                        return response()->json([
-                            'message' => 'Account is inactive'
-                        ], 403);
-                    }
-
-                    $token = $user->createToken('auth_token')->plainTextToken;
-
-                    // Log user login
-                    AuditLog::log([
-                        'user_id' => $user->id,
-                        'action' => 'logged_in',
-                        'model_type' => 'User',
-                        'model_id' => $user->id,
-                        'description' => "User {$user->name} logged in",
-                    ]);
-
-                    // Load user with relationships and permissions
-                    $user->load(['departments', 'roles.permissions']);
-
-                    return response()->json([
-                        'user' => $user,
-                        'token' => $token,
-                        'token_type' => 'Bearer',
-                        'permissions' => $user->getAllPermissions()->pluck('name'),
-                        'roles' => $user->getRoleNames()
-                    ]);
-                }
-            }
-
             return response()->json([
-                'message' => $response['message']
-            ], $response['code']);
+                'message' => $response['message'] ?? 'Login failed'
+            ], $response['code'] ?? 401);
         }
-
     }
 
     public function logout(Request $request)
@@ -240,8 +240,10 @@ class AuthController extends Controller
 
     public function getDemoAccounts()
     {
-        // Get all active users for demo purposes (ordered by ID - database insertion order)
+        // Get all active users with passwords (custom/test users) for demo purposes
         $users = User::where('is_active', true)
+            ->whereNotNull('password')
+            ->where('password', '!=', '')
             ->with('departments')
             ->orderBy('id')
             ->get()
@@ -258,9 +260,13 @@ class AuthController extends Controller
                     $icon = $isManager ? '👔' : '🔧';
                 }
 
+                // Use username, name, or email for login (whichever is available)
+                $loginIdentifier = $user->username ?? $user->name ?? $user->email;
+
                 return [
                     'icon' => $icon,
                     'name' => $user->name,
+                    'username' => $loginIdentifier,
                     'email' => $user->email,
                     'role' => ucfirst($user->role),
                 ];

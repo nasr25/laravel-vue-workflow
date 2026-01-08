@@ -62,13 +62,25 @@ class WorkflowController extends Controller
             ->orderBy('submitted_at', 'desc')
             ->get();
 
+        // Add flag to check if request went through employee processing
+        $requests->each(function($request) {
+            // Check if there was ever an employee assignment in the workflow
+            $hadEmployeeAssignment = \App\Models\RequestTransition::where('request_id', $request->id)
+                ->where('action', 'assign')
+                ->whereNotNull('to_user_id')
+                ->exists();
+
+            $request->went_through_employee_processing = $hadEmployeeAssignment;
+        });
+
         return response()->json([
             'requests' => $requests
         ]);
     }
 
     /**
-     * Get all requests for Department A managers (all statuses)
+     * Get all requests for Department A managers (all statuses except drafts)
+     * Note: Drafts are excluded as they are private to the user who created them
      */
     public function getAllRequests(HttpRequest $request)
     {
@@ -82,6 +94,7 @@ class WorkflowController extends Controller
         }
 
         // Get all requests with their latest status and current location
+        // Exclude draft requests as they are private to the user who created them
         $requests = Request::with([
             'user',
             'currentDepartment',
@@ -93,6 +106,7 @@ class WorkflowController extends Controller
             'transitions.actionedBy',
             'transitions.toDepartment'
         ])
+        ->where('status', '!=', 'draft') // Exclude draft requests
         ->orderBy('updated_at', 'desc')
         ->get();
 
@@ -102,18 +116,12 @@ class WorkflowController extends Controller
     }
 
     /**
-     * Get request details with full history
+     * Get request details with full history (excluding drafts)
+     * Note: Drafts are excluded as they are private to the user who created them
      */
     public function getRequestDetail($requestId, HttpRequest $request)
     {
         $user = $request->user();
-
-        // Check permission
-        if (!$user->hasPermissionTo('workflow.view-pending')) {
-            return response()->json([
-                'message' => __('messages.unauthorized_view_details')
-            ], 403);
-        }
 
         $requestDetail = Request::with([
             'user',
@@ -134,7 +142,61 @@ class WorkflowController extends Controller
             'pathEvaluations.question',
             'pathEvaluations.evaluatedBy'
         ])
+        ->where('status', '!=', 'draft') // Exclude draft requests
         ->findOrFail($requestId);
+
+        // Authorization: Allow access if user is:
+        // 1. The request creator
+        // 2. Has Department A permission (workflow.view-pending)
+        // 3. Is in a department that the request has been/is currently in (manager or employee)
+        // 4. Is currently assigned to the request
+
+        $canView = false;
+
+        // Check if user created the request
+        if ($requestDetail->user_id === $user->id) {
+            $canView = true;
+        }
+
+        // Check if user has Department A permission
+        else if ($user->hasPermissionTo('workflow.view-pending')) {
+            $canView = true;
+        }
+
+        // Check if user is currently assigned
+        else if ($requestDetail->current_user_id === $user->id) {
+            $canView = true;
+        }
+
+        // Check if user is in a department involved in this request
+        else {
+            // Get all departments the user belongs to
+            $userDepartments = $user->departments()->pluck('departments.id');
+
+            // Check if request is currently in one of user's departments
+            if ($userDepartments->contains($requestDetail->current_department_id)) {
+                $canView = true;
+            }
+            // Check if request has been in one of user's departments (via transitions)
+            else {
+                $departmentInvolved = \App\Models\RequestTransition::where('request_id', $requestDetail->id)
+                    ->where(function($query) use ($userDepartments) {
+                        $query->whereIn('from_department_id', $userDepartments)
+                            ->orWhereIn('to_department_id', $userDepartments);
+                    })
+                    ->exists();
+
+                if ($departmentInvolved) {
+                    $canView = true;
+                }
+            }
+        }
+
+        if (!$canView) {
+            return response()->json([
+                'message' => 'Unauthorized. You do not have permission to view request details.'
+            ], 403);
+        }
 
         return response()->json([
             'request' => $requestDetail

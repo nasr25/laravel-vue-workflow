@@ -47,7 +47,7 @@ class RequestController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:200',
             'description' => 'required|string|min:25',
-            'idea_type' => 'required|string', // Can be idea type ID or old format
+            'idea_type' => 'nullable|string', // Can be idea type ID or old format (now optional)
             'department' => 'required|string', // Can be department ID or "unknown"
             'benefits' => 'nullable|string',
             'status' => 'nullable|string|in:draft,pending',
@@ -59,6 +59,7 @@ class RequestController extends Controller
             'employees.*.employee_email' => 'nullable|email',
             'employees.*.employee_department' => 'nullable|string',
             'employees.*.employee_title' => 'nullable|string',
+            'resubmission_reason' => 'nullable|string|max:1000', // Reason for resubmitting rejected request
         ], [
             'idea_ownership_type.in' => __('validation.idea_ownership_type_invalid'),
         ]);
@@ -81,10 +82,16 @@ class RequestController extends Controller
             }
         }
 
+        // Log the ownership type being saved
+        \Log::info('Creating request with idea_ownership_type', [
+            'received_idea_ownership_type' => $validated['idea_ownership_type'] ?? 'NOT SET',
+            'saving_as_idea_type' => $validated['idea_ownership_type'] ?? 'individual'
+        ]);
+
         $userRequest = Request::create([
             'title' => $validated['title'],
             'description' => $validated['description'],
-            'idea_type_id' => (int) $validated['idea_type'], // Store idea type ID
+            'idea_type_id' => !empty($validated['idea_type']) ? (int) $validated['idea_type'] : null, // Store idea type ID (optional)
             'department_id' => $selectedDepartmentId, // Store selected department
             'benefits' => $validated['benefits'] ?? null,
             'user_id' => $request->user()->id,
@@ -92,6 +99,12 @@ class RequestController extends Controller
             'idea_type' => $validated['idea_ownership_type'] ?? 'individual',
             'current_department_id' => $currentDepartmentId,
             'submitted_at' => $status === 'pending' ? now() : null,
+        ]);
+
+        // Log what was actually saved
+        \Log::info('Request created with idea_type', [
+            'request_id' => $userRequest->id,
+            'saved_idea_type' => $userRequest->idea_type
         ]);
 
         // Handle employees if shared idea
@@ -164,8 +177,27 @@ class RequestController extends Controller
 
     public function show($id, HttpRequest $request)
     {
+        $user = $request->user();
+
+        // Get departments where user is manager or employee
+        $userDepartments = $user->departments()->pluck('departments.id');
+
+        // Find the request with permissions check
         $userRequest = Request::where('id', $id)
-            ->where('user_id', $request->user()->id)
+            ->where(function($query) use ($user, $userDepartments) {
+                // User owns the request
+                $query->where('user_id', $user->id)
+                    // OR user has permission to view all requests (admin)
+                    ->orWhere(function($q) use ($user) {
+                        if ($user->hasPermissionTo('request.view-all')) {
+                            $q->whereRaw('1=1'); // Allow all
+                        }
+                    })
+                    // OR request is in user's department (as manager or employee)
+                    ->orWhereIn('current_department_id', $userDepartments)
+                    // OR request is assigned to user
+                    ->orWhere('current_user_id', $user->id);
+            })
             ->with(['user', 'ideaType', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'employees', 'transitions.actionedBy', 'transitions.toDepartment'])
             ->firstOrFail();
 
@@ -178,7 +210,7 @@ class RequestController extends Controller
     {
         $userRequest = Request::where('id', $id)
             ->where('user_id', $request->user()->id)
-            ->whereIn('status', ['draft', 'need_more_details'])
+            ->whereIn('status', ['draft', 'need_more_details', 'rejected'])
             ->firstOrFail();
 
         $validated = $request->validate([
@@ -197,6 +229,7 @@ class RequestController extends Controller
             'employees.*.employee_email' => 'nullable|email',
             'employees.*.employee_department' => 'nullable|string',
             'employees.*.employee_title' => 'nullable|string',
+            'resubmission_reason' => 'nullable|string|max:1000', // Reason for resubmitting rejected request
         ], [
             'idea_ownership_type.in' => __('validation.idea_ownership_type_invalid'),
         ]);
@@ -204,7 +237,7 @@ class RequestController extends Controller
         // Handle idea_type conversion to idea_type_id
         $updateData = $validated;
         if (isset($validated['idea_type'])) {
-            $updateData['idea_type_id'] = (int) $validated['idea_type'];
+            $updateData['idea_type_id'] = !empty($validated['idea_type']) ? (int) $validated['idea_type'] : null;
             unset($updateData['idea_type']);
         }
 
@@ -229,24 +262,64 @@ class RequestController extends Controller
         $departmentId = $userRequest->current_department_id;
 
         // If submitting (changing from draft/need_more_details to pending)
-        if ($status === 'pending' && in_array($userRequest->status, ['draft', 'need_more_details'])) {
+        if ($status === 'pending' && in_array($userRequest->status, ['draft', 'need_more_details', 'rejected'])) {
             $departmentA = \App\Models\Department::where('is_department_a', true)->first();
             if ($departmentA) {
-                $departmentId = $departmentA->id;
-                $updateData['current_department_id'] = $departmentId;
-                $updateData['submitted_at'] = now();
-
                 $previousStatus = $userRequest->status;
+                $isResubmit = $previousStatus === 'rejected';
+
+                // Determine target department based on whether this is a resubmission
+                $targetDepartmentId = $departmentA->id;
+                $targetStatus = 'pending';
+                $routeLeaderId = null;
+
+                if ($isResubmit) {
+                    // Find the last rejection transition to get the department and route leader who rejected
+                    $lastRejection = \App\Models\RequestTransition::where('request_id', $userRequest->id)
+                        ->whereIn('action', ['reject', 'reject_idea'])
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+
+                    if ($lastRejection && $lastRejection->from_department_id) {
+                        // Use the department where the request was rejected from directly
+                        $targetDepartmentId = $lastRejection->from_department_id;
+                        $routeLeaderId = $lastRejection->actioned_by;
+
+                        // If resubmitting to route leader department (not Dept A), keep it in_review status
+                        if ($targetDepartmentId !== $departmentA->id) {
+                            $targetStatus = 'in_review';
+                        }
+                    }
+                }
+
+                $departmentId = $targetDepartmentId;
+                $updateData['current_department_id'] = $departmentId;
+                $updateData['status'] = $targetStatus;
+                $updateData['submitted_at'] = now();
+                $updateData['current_stage_started_at'] = now();
+
+                // Determine action type based on previous status
+                $actionType = $isResubmit ? 'resubmit' : 'submit';
+                $comments = $isResubmit
+                    ? ($validated['resubmission_reason'] ?? 'Request resubmitted after rejection')
+                    : 'Request resubmitted for review';
+
+                // Clear rejection reason if resubmitting
+                if ($isResubmit) {
+                    $updateData['rejection_reason'] = null;
+                    $updateData['current_user_id'] = null; // Leave unassigned for manager to see
+                }
 
                 // Create transition
                 \App\Models\RequestTransition::create([
                     'request_id' => $userRequest->id,
                     'to_department_id' => $departmentId,
+                    'to_user_id' => $routeLeaderId,
                     'actioned_by' => $request->user()->id,
-                    'action' => 'submit',
+                    'action' => $actionType,
                     'from_status' => $userRequest->status,
-                    'to_status' => 'pending',
-                    'comments' => 'Request resubmitted for review',
+                    'to_status' => $targetStatus,
+                    'comments' => $comments,
                 ]);
 
                 $userRequest->update($updateData);
@@ -256,8 +329,8 @@ class RequestController extends Controller
                     $userRequest->fresh(['user', 'currentDepartment']),
                     NotificationService::TYPE_REQUEST_STATUS_CHANGED,
                     'Request Resubmitted',
-                    "Request '{$userRequest->title}' has been resubmitted for review.",
-                    ['previous_status' => $previousStatus, 'action' => 'resubmitted']
+                    "Request '{$userRequest->title}' has been resubmitted for review with explanation.",
+                    ['previous_status' => $previousStatus, 'action' => 'resubmitted', 'resubmission_reason' => $validated['resubmission_reason'] ?? null]
                 );
             }
         } else {
@@ -359,8 +432,12 @@ class RequestController extends Controller
     {
         $userRequest = Request::where('id', $id)
             ->where('user_id', $request->user()->id)
-            ->whereIn('status', ['draft', 'need_more_details'])
+            ->whereIn('status', ['draft', 'need_more_details', 'rejected'])
             ->firstOrFail();
+
+        $validated = $request->validate([
+            'resubmission_reason' => 'nullable|string|max:1000',
+        ]);
 
         // Get Department A
         $departmentA = \App\Models\Department::where('is_department_a', true)->first();
@@ -371,37 +448,87 @@ class RequestController extends Controller
             ], 500);
         }
 
-        $userRequest->update([
-            'current_department_id' => $departmentA->id,
-            'status' => 'pending',
+        $previousStatus = $userRequest->status;
+        $isResubmit = $previousStatus === 'rejected';
+
+        // Determine target department based on whether this is a resubmission
+        $targetDepartmentId = $departmentA->id;
+        $targetStatus = 'pending';
+        $routeLeaderId = null;
+
+        if ($isResubmit) {
+            // Find the last rejection transition to get the department and route leader who rejected
+            $lastRejection = \App\Models\RequestTransition::where('request_id', $userRequest->id)
+                ->whereIn('action', ['reject', 'reject_idea'])
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if ($lastRejection && $lastRejection->from_department_id) {
+                // Use the department where the request was rejected from directly
+                $targetDepartmentId = $lastRejection->from_department_id;
+                $routeLeaderId = $lastRejection->actioned_by;
+
+                // If resubmitting to route leader department (not Dept A), keep it in_review status
+                if ($targetDepartmentId !== $departmentA->id) {
+                    $targetStatus = 'in_review';
+                }
+            }
+        }
+
+        $updateData = [
+            'current_department_id' => $targetDepartmentId,
+            'status' => $targetStatus,
             'submitted_at' => now(),
             'current_stage_started_at' => now(),
             'sla_reminder_sent_at' => null,
-        ]);
+        ];
+
+        // Clear rejection reason if resubmitting
+        if ($isResubmit) {
+            $updateData['rejection_reason'] = null;
+            $updateData['current_user_id'] = null; // Leave unassigned for manager to see
+        }
+
+        $userRequest->update($updateData);
+
+        // Determine action type and comments based on previous status
+        $actionType = $isResubmit ? 'resubmit' : 'submit';
+        $comments = $isResubmit
+            ? ($validated['resubmission_reason'] ?? 'Request resubmitted after rejection')
+            : 'Request submitted for review';
 
         // Create transition record
         \App\Models\RequestTransition::create([
             'request_id' => $userRequest->id,
-            'to_department_id' => $departmentA->id,
+            'to_department_id' => $targetDepartmentId,
+            'to_user_id' => $routeLeaderId,
             'actioned_by' => $request->user()->id,
-            'action' => 'submit',
-            'from_status' => 'draft',
-            'to_status' => 'pending',
-            'comments' => 'Request submitted for review',
+            'action' => $actionType,
+            'from_status' => $previousStatus,
+            'to_status' => $targetStatus,
+            'comments' => $comments,
         ]);
 
         // Send notifications to all stakeholders
+        $notificationType = $isResubmit
+            ? NotificationService::TYPE_REQUEST_STATUS_CHANGED
+            : NotificationService::TYPE_REQUEST_CREATED;
+        $notificationTitle = $isResubmit ? 'Request Resubmitted' : 'New Request Submitted';
+        $notificationMessage = $isResubmit
+            ? "Request '{$userRequest->title}' has been resubmitted for review with explanation."
+            : "A new request '{$userRequest->title}' has been submitted and is pending review.";
+
         $this->notificationService->notifyRequestStakeholders(
             $userRequest->fresh(['user', 'currentDepartment']),
-            NotificationService::TYPE_REQUEST_CREATED,
-            'New Request Submitted',
-            "A new request '{$userRequest->title}' has been submitted and is pending review.",
-            ['action' => 'submitted']
+            $notificationType,
+            $notificationTitle,
+            $notificationMessage,
+            ['action' => $isResubmit ? 'resubmitted' : 'submitted', 'previous_status' => $previousStatus, 'resubmission_reason' => $validated['resubmission_reason'] ?? null]
         );
 
         return response()->json([
-            'message' => 'Request submitted successfully',
-            'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
+            'message' => $isResubmit ? 'Request resubmitted successfully' : 'Request submitted successfully',
+            'request' => $userRequest->load(['currentDepartment', 'workflowPath', 'currentAssignee'])
         ]);
     }
 
@@ -458,11 +585,15 @@ class RequestController extends Controller
         $user = $request->user();
 
         // Base query - different for each role
+        // Note: Drafts from other users are excluded from statistics
         $baseQuery = null;
 
         if ($user->role === 'admin') {
-            // Admin sees all requests
-            $baseQuery = Request::query();
+            // Admin sees all non-draft requests + their own drafts
+            $baseQuery = Request::where(function($query) use ($user) {
+                $query->where('status', '!=', 'draft')
+                      ->orWhere('user_id', $user->id);
+            });
         } elseif ($user->role === 'manager') {
             // Check if manager is in Department A
             $managedDepartments = $user->departments()
@@ -471,25 +602,33 @@ class RequestController extends Controller
 
             $deptA = \App\Models\Department::where('is_department_a', true)->first();
 
-            // If user manages Department A, they see ALL requests
+            // If user manages Department A, they see ALL non-draft requests + their own drafts
             if ($deptA && $managedDepartments->contains($deptA->id)) {
-                $baseQuery = Request::query();
+                $baseQuery = Request::where(function($query) use ($user) {
+                    $query->where('status', '!=', 'draft')
+                          ->orWhere('user_id', $user->id);
+                });
             } else {
-                // Other managers see only requests in their departments
-                $baseQuery = Request::whereIn('current_department_id', $managedDepartments);
+                // Other managers see only non-draft requests in their departments + their own drafts
+                $baseQuery = Request::where(function($query) use ($user, $managedDepartments) {
+                    $query->where(function($q) use ($managedDepartments) {
+                        $q->whereIn('current_department_id', $managedDepartments)
+                          ->where('status', '!=', 'draft');
+                    })->orWhere('user_id', $user->id);
+                });
             }
         } elseif ($user->role === 'employee') {
-            // Employee sees:
-            // 1. Requests assigned to them
-            // 2. Requests in their departments
+            // Employee sees non-draft requests (assigned to them or in their departments) + their own drafts
             $userDepartments = $user->departments()->pluck('departments.id');
 
             $baseQuery = Request::where(function($query) use ($user, $userDepartments) {
-                $query->where('current_user_id', $user->id)
+                $query->where(function($q) use ($user, $userDepartments) {
+                    $q->where('current_user_id', $user->id)
                       ->orWhereIn('current_department_id', $userDepartments);
-            });
+                })->where('status', '!=', 'draft');
+            })->orWhere('user_id', $user->id);
         } else {
-            // Regular user sees only their own requests
+            // Regular user sees only their own requests (including drafts)
             $baseQuery = Request::where('user_id', $user->id);
         }
 
