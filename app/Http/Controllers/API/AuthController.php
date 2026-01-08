@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\AuditLog;
+use App\Models\Department;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
@@ -122,6 +123,16 @@ class AuthController extends Controller
 
                 $role = Role::where('name', 'LIKE', 'user')->first(); 
                 $user->assignRole($role);
+
+                if($response['data']['ou'] && $response['data']['ou'] != null) {
+                    $department = Department::whereIn('title', $response['data']['ou'])->first();
+                    if($department) {
+                        // Check if already assigned
+                        if (!$user->departments()->where('departments.id', $department->id)->exists()) {
+                            $user->departments()->attach($department->id, ['role' => 'employee']);
+                        }
+                    }
+                }
             }
 
             $token = $user->createToken('auth_token')->plainTextToken;

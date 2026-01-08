@@ -183,7 +183,7 @@ class AdminController extends Controller
             'username' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             // 'password' => 'required|string|min:6',
-            'role' => ['required', Rule::in(['admin', 'manager', 'employee', 'user'])],
+            'role' => ['required', Rule::in(['admin', 'supervisor', 'manager', 'employee', 'user'])],
             'is_active' => 'boolean',
         ]);
 
@@ -193,6 +193,24 @@ class AdminController extends Controller
 
         $role = Role::where('name', 'LIKE', $validated['role'])->first(); 
         $user->assignRole($role);
+
+        if($validated['ou'] && $validated['ou'] != null) {
+            $department = Department::whereIn('title', $validated['ou'])->first();
+
+            if($department) {
+                // Check if already assigned
+                if (!$user->departments()->where('departments.id', $department->id)->exists()) {
+
+                    if($validated['role'] == 'supervisor' || $validated['role'] == 'manager') {
+                        $user_department_role = 'manager';
+                    } else {
+                        $user_department_role = 'employee';
+                    }
+
+                    $user->departments()->attach($department->id, ['role' => $user_department_role]);
+                }
+            }
+        }
 
         // Log user creation
         AuditLog::log([
