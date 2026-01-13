@@ -39,6 +39,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Dashboard statistics
     Route::get('/dashboard/statistics', [RequestController::class, 'getStatistics']);
 
+    // Ideas Bank - All approved ideas visible to all users
+    Route::get('/ideas-bank', [RequestController::class, 'getApprovedIdeas']);
+
     // User Settings
     Route::get('/user/settings', [App\Http\Controllers\API\UserSettingsController::class, 'getSettings']);
     Route::post('/user/settings', [App\Http\Controllers\API\UserSettingsController::class, 'saveSettings']);

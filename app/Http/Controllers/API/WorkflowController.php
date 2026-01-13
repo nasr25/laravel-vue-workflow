@@ -62,8 +62,11 @@ class WorkflowController extends Controller
             ->orderBy('submitted_at', 'desc')
             ->get();
 
-        // Add flag to check if request went through employee processing
-        $requests->each(function($request) {
+        // Get total active evaluation questions count
+        $totalQuestions = \App\Models\EvaluationQuestion::where('is_active', true)->count();
+
+        // Add flags to each request
+        $requests->each(function($request) use ($totalQuestions) {
             // Check if there was ever an employee assignment in the workflow
             $hadEmployeeAssignment = \App\Models\RequestTransition::where('request_id', $request->id)
                 ->where('action', 'assign')
@@ -71,6 +74,10 @@ class WorkflowController extends Controller
                 ->exists();
 
             $request->went_through_employee_processing = $hadEmployeeAssignment;
+
+            // Check if request has been fully evaluated
+            $evaluationCount = \App\Models\RequestEvaluation::where('request_id', $request->id)->count();
+            $request->has_evaluated = $totalQuestions > 0 && $evaluationCount >= $totalQuestions;
         });
 
         return response()->json([
@@ -85,6 +92,7 @@ class WorkflowController extends Controller
     public function getAllRequests(HttpRequest $request)
     {
         $user = $request->user();
+        $perPage = $request->input('per_page', 12);
 
         // Check permission
         if (!$user->hasPermissionTo('workflow.view-pending')) {
@@ -108,10 +116,18 @@ class WorkflowController extends Controller
         ])
         ->where('status', '!=', 'draft') // Exclude draft requests
         ->orderBy('updated_at', 'desc')
-        ->get();
+        ->paginate($perPage);
 
         return response()->json([
-            'requests' => $requests
+            'requests' => $requests->items(),
+            'pagination' => [
+                'current_page' => $requests->currentPage(),
+                'last_page' => $requests->lastPage(),
+                'per_page' => $requests->perPage(),
+                'total' => $requests->total(),
+                'from' => $requests->firstItem(),
+                'to' => $requests->lastItem(),
+            ]
         ]);
     }
 

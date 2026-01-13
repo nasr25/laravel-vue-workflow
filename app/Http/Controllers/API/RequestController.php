@@ -31,14 +31,38 @@ class RequestController extends Controller
     public function index(HttpRequest $request)
     {
         $user = $request->user();
+        $perPage = $request->input('per_page', 12);
+        $status = $request->input('status');
+        $search = $request->input('search');
 
-        $requests = Request::where('user_id', $user->id)
-            ->with(['ideaType', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'employees'])
-            ->orderBy('created_at', 'desc')
-            ->get();
+        $query = Request::where('user_id', $user->id)
+            ->with(['ideaType', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'employees']);
+
+        // Filter by status if provided
+        if ($status && $status !== 'all') {
+            $query->where('status', $status);
+        }
+
+        // Search by title or description
+        if ($search) {
+            $query->where(function($q) use ($search) {
+                $q->where('title', 'LIKE', "%{$search}%")
+                  ->orWhere('description', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $requests = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
         return response()->json([
-            'requests' => $requests
+            'requests' => $requests->items(),
+            'pagination' => [
+                'current_page' => $requests->currentPage(),
+                'last_page' => $requests->lastPage(),
+                'per_page' => $requests->perPage(),
+                'total' => $requests->total(),
+                'from' => $requests->firstItem(),
+                'to' => $requests->lastItem(),
+            ]
         ]);
     }
 
@@ -574,6 +598,80 @@ class RequestController extends Controller
 
         return response()->json([
             'message' => 'Attachment deleted successfully'
+        ]);
+    }
+
+    /**
+     * Get all approved ideas for the Ideas Bank
+     * Shows ideas that have been approved by path manager and assigned to an employee
+     * Visible to all authenticated users
+     */
+    public function getApprovedIdeas(HttpRequest $request)
+    {
+        $search = $request->input('search', '');
+        $filter = $request->input('filter', 'all'); // all, under_review, in_progress, completed
+        $page = $request->input('page', 1);
+        $perPage = $request->input('per_page', 12);
+
+        // Show ideas once path manager approves (assigns workflow path) until completion
+        $query = Request::where(function($q) {
+                $q->whereNotNull('workflow_path_id');
+            })
+            ->orWhere('status', 'completed')
+            ->with(['user:id,username', 'ideaType:id,name,name_ar,color', 'department:id,name', 'workflowPath:id,name', 'currentAssignee:id,username']);
+
+        // Apply search filter
+        if (!empty($search)) {
+            $query->where(function($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        // Apply status filter
+        if ($filter === 'under_review') {
+            // Path assigned but not yet in progress or completed
+            $query->whereNotNull('workflow_path_id')
+                  ->whereNotIn('status', ['in_progress', 'completed']);
+        } elseif ($filter === 'in_progress') {
+            // Actively being worked on
+            $query->whereNotNull('workflow_path_id')
+                  ->where('status', 'in_progress');
+        } elseif ($filter === 'completed') {
+            $query->where('status', 'completed');
+        }
+
+        // Get total count for statistics
+        // Under Review: path assigned but not in progress or completed
+        $totalUnderReview = Request::whereNotNull('workflow_path_id')
+            ->whereNotIn('status', ['in_progress', 'completed'])
+            ->count();
+        // In Progress: actively being worked on
+        $totalInProgress = Request::whereNotNull('workflow_path_id')
+            ->where('status', 'in_progress')
+            ->count();
+        // Completed: all completed ideas
+        $totalCompleted = Request::where('status', 'completed')->count();
+        $totalIdeas = $totalUnderReview + $totalInProgress + $totalCompleted;
+
+        // Get paginated results
+        $ideas = $query->orderBy('updated_at', 'desc')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json([
+            'ideas' => $ideas->items(),
+            'pagination' => [
+                'current_page' => $ideas->currentPage(),
+                'last_page' => $ideas->lastPage(),
+                'per_page' => $ideas->perPage(),
+                'total' => $ideas->total(),
+            ],
+            'stats' => [
+                'total' => $totalIdeas,
+                'under_review' => $totalUnderReview,
+                'in_progress' => $totalInProgress,
+                'completed' => $totalCompleted,
+            ]
         ]);
     }
 

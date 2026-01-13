@@ -154,20 +154,40 @@ class AdminController extends Controller
     // ============= USER MANAGEMENT =============
 
     /**
-     * Get all users
+     * Get all users with pagination
      */
     public function getUsers(Request $request)
     {
         if ($error = $this->checkAdmin($request)) return $error;
 
-        $users = User::with(['departments' => function($query) {
+        $perPage = $request->input('per_page', 10);
+        $search = $request->input('search', '');
+
+        $query = User::with(['departments' => function($query) {
             $query->withPivot('role');
-        }, 'roles'])
-        ->orderBy('id', 'asc')
-        ->get();
+        }, 'roles']);
+
+        // Apply search filter
+        if (!empty($search)) {
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('username', 'like', "%{$search}%");
+            });
+        }
+
+        $users = $query->orderBy('id', 'asc')->paginate($perPage);
 
         return response()->json([
-            'users' => $users
+            'users' => $users->items(),
+            'pagination' => [
+                'total' => $users->total(),
+                'per_page' => $users->perPage(),
+                'current_page' => $users->currentPage(),
+                'last_page' => $users->lastPage(),
+                'from' => $users->firstItem(),
+                'to' => $users->lastItem(),
+            ]
         ]);
     }
 

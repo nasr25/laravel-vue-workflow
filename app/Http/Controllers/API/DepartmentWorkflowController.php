@@ -25,13 +25,14 @@ class DepartmentWorkflowController extends Controller
     public function getDepartmentRequests(HttpRequest $request)
     {
         $user = $request->user();
+        $perPage = $request->input('per_page', 12);
 
         // Admin can see all requests
         if ($user->role === 'admin') {
             $requests = Request::whereIn('status', ['pending', 'in_review', 'in_progress'])
                 ->with(['user', 'currentDepartment', 'workflowPath.steps.department', 'attachments', 'transitions.actionedBy', 'currentAssignee'])
                 ->orderBy('updated_at', 'desc')
-                ->get();
+                ->paginate($perPage);
 
             // Add evaluation status for each request
             $requests->each(function($request) {
@@ -41,7 +42,15 @@ class DepartmentWorkflowController extends Controller
             });
 
             return response()->json([
-                'requests' => $requests
+                'requests' => $requests->items(),
+                'pagination' => [
+                    'current_page' => $requests->currentPage(),
+                    'last_page' => $requests->lastPage(),
+                    'per_page' => $requests->perPage(),
+                    'total' => $requests->total(),
+                    'from' => $requests->firstItem(),
+                    'to' => $requests->lastItem(),
+                ]
             ]);
         }
 
@@ -77,7 +86,7 @@ class DepartmentWorkflowController extends Controller
 
         $requests = $query->with(['user', 'currentDepartment', 'workflowPath.steps.department', 'attachments', 'transitions.actionedBy', 'currentAssignee'])
             ->orderBy('updated_at', 'desc')
-            ->get();
+            ->paginate($perPage);
 
         // Add evaluation status for each request
         $requests->each(function($request) use ($isManager) {
@@ -151,7 +160,15 @@ class DepartmentWorkflowController extends Controller
         });
 
         return response()->json([
-            'requests' => $requests
+            'requests' => $requests->items(),
+            'pagination' => [
+                'current_page' => $requests->currentPage(),
+                'last_page' => $requests->lastPage(),
+                'per_page' => $requests->perPage(),
+                'total' => $requests->total(),
+                'from' => $requests->firstItem(),
+                'to' => $requests->lastItem(),
+            ]
         ]);
     }
 
