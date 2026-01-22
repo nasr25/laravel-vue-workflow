@@ -57,10 +57,8 @@ class ExchangeCalendarService
 
             if ($targetEmail) {
                 Log::info('EWS: Setting up impersonation', ['target' => $targetEmail]);
-                $client->setImpersonation(
-                    \jamesiarmes\PhpEws\Enumeration\ConnectingSIDType::SMTP_ADDRESS,
-                    $targetEmail
-                );
+                // Use string constant instead of class constant
+                $client->setImpersonation('SmtpAddress', $targetEmail);
             }
 
             Log::info('EWS: Client initialized successfully');
