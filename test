@@ -1,11 +1,17 @@
-[2026-01-22 11:05:27] local.INFO: Quick Test: Starting {"username":"c-ibarry@gadd.gov.sa"} 
-[2026-01-22 11:05:27] local.INFO: Quick Test: Using dates {"start":"2026-01-22T00:00:00Z","end":"2026-01-29T23:59:59Z"} 
-[2026-01-22 11:05:27] local.INFO: EWS: Getting calendar events {"username":"c-ibarry@gadd.gov.sa"} 
-[2026-01-22 11:05:27] local.INFO: EWS: Attempting to connect {"server":"mail.gadd.gov.sa/EWS/Exchange.asmx","username":"c-ibarry@gadd.gov.sa","is_email":true} 
-[2026-01-22 11:05:27] local.INFO: EWS: Client initialized successfully  
-[2026-01-22 11:05:27] local.INFO: EWS: Testing calendar access with GetFolder  
-[2026-01-22 11:05:27] local.ERROR: EWS: Failed to access calendar folder {"error":"The request is invalid."} 
-[2026-01-22 11:05:27] local.ERROR: EWS: Failed to get calendar events {"username":"c-ibarry@gadd.gov.sa","error":"Calendar access denied or calendar does not exist"} 
-[2026-01-22 11:05:27] local.ERROR: Quick Test: Failed {"username":"c-ibarry@gadd.gov.sa","error":"Calendar access denied or calendar does not exist"} 
+# Exchange Server Configuration
+EXCHANGE_SERVER=mail.gadd.gov.sa/EWS/Exchange.asmx
+EXCHANGE_VERSION=2016
 
+# Service Account (with impersonation rights)
+EXCHANGE_SERVICE_USERNAME=service-account@gadd.gov.sa
+EXCHANGE_SERVICE_PASSWORD=service-account-password
+```
 
+## Now Test with Service Account:
+```
+http://your-app/api/calendar/test?service_username=YOUR_SERVICE_ACCOUNT@gadd.gov.sa&service_password=SERVICE_PASSWORD&target_email=c-ibarry@gadd.gov.sa
+```
+
+Or if you add credentials to `.env`, just:
+```
+http://your-app/api/calendar/test?target_email=c-ibarry@gadd.gov.sa

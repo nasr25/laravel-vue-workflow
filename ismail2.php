@@ -21,22 +21,35 @@ class CalendarController extends Controller
      */
     public function quickTest(Request $request): JsonResponse
     {
-        // Get credentials from query params for easy testing
-        $username = $request->input('username');
-        $password = $request->input('password');
+        // Service account credentials (should be in .env in production)
+        $serviceUsername = $request->input('service_username') ?? env('EXCHANGE_SERVICE_USERNAME');
+        $servicePassword = $request->input('service_password') ?? env('EXCHANGE_SERVICE_PASSWORD');
+        
+        // Target user email
+        $targetEmail = $request->input('target_email') ?? $request->input('username');
 
-        if (!$username || !$password) {
+        if (!$serviceUsername || !$servicePassword) {
             return response()->json([
                 'success' => false,
-                'message' => 'Please provide username and password',
-                'example' => 'GET /api/calendar/test?username=user@domain.com&password=yourpass'
+                'message' => 'Please provide service account credentials',
+                'example' => 'GET /api/calendar/test?service_username=service@domain.com&service_password=pass&target_email=user@domain.com'
             ], 400);
         }
 
-        Log::info('Quick Test: Starting', ['username' => $username]);
+        if (!$targetEmail) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please provide target_email parameter',
+                'example' => 'GET /api/calendar/test?service_username=service@domain.com&service_password=pass&target_email=user@domain.com'
+            ], 400);
+        }
+
+        Log::info('Quick Test: Starting', [
+            'service_account' => $serviceUsername,
+            'target_user' => $targetEmail
+        ]);
 
         try {
-            // Use proper date format for Exchange - both should be at start of day or end of day
             $startDate = gmdate('Y-m-d\T00:00:00\Z', strtotime('today'));
             $endDate = gmdate('Y-m-d\T23:59:59\Z', strtotime('+7 days'));
             
@@ -45,10 +58,10 @@ class CalendarController extends Controller
                 'end' => $endDate
             ]);
             
-            // Try to get events
             $events = $this->calendarService->getCalendarEvents(
-                $username,
-                $password,
+                $serviceUsername,
+                $servicePassword,
+                $targetEmail,
                 [
                     'startDate' => $startDate,
                     'endDate' => $endDate
@@ -60,15 +73,17 @@ class CalendarController extends Controller
                 'message' => '✓ Connection successful!',
                 'data' => [
                     'server' => config('services.exchange.server'),
-                    'username' => $username,
+                    'service_account' => $serviceUsername,
+                    'target_user' => $targetEmail,
                     'events_count' => count($events),
-                    'events' => array_slice($events, 0, 3) // First 3 events
+                    'events' => array_slice($events, 0, 5) // First 5 events
                 ]
             ]);
 
         } catch (\Exception $e) {
             Log::error('Quick Test: Failed', [
-                'username' => $username,
+                'service_account' => $serviceUsername,
+                'target_user' => $targetEmail,
                 'error' => $e->getMessage()
             ]);
 
@@ -77,9 +92,9 @@ class CalendarController extends Controller
                 'message' => '✗ Connection failed',
                 'error' => $e->getMessage(),
                 'troubleshooting' => [
-                    'Check your username format (use email: user@domain.com)',
-                    'Verify password is correct',
-                    'Check server URL in .env: ' . config('services.exchange.server'),
+                    'Check service account credentials',
+                    'Verify service account has impersonation rights',
+                    'Check target email is correct',
                     'Check logs: storage/logs/laravel.log'
                 ]
             ], 500);
