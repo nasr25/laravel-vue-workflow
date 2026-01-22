@@ -25,12 +25,12 @@ return [
     // Status translations
     'status' => [
         'draft' => 'مسودة',
-        'pending' => 'قيد الانتظار',
-        'in_review' => 'قيد المراجعة',
-        'in_progress' => 'قيد التنفيذ',
+        'pending' => 'افكار قيد الانتظار',
+        'in_review' => 'افكار قيد المراجعة',
+        'in_progress' => 'افكار قيد التنفيذ',
         'need_more_details' => 'يحتاج مزيد من التفاصيل',
-        'approved' => 'موافق عليه',
-        'rejected' => 'مرفوض',
-        'completed' => 'مكتمل',
+        'approved' => 'افكار موافق عليه',
+        'rejected' => 'افكار مرفوضة',
+        'completed' => 'افكار مكتملة',
     ],
 ];

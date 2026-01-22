@@ -70,7 +70,7 @@ class RequestController extends Controller
     {
         $validated = $request->validate([
             'title' => 'required|string|max:200',
-            'description' => 'required|string|min:25',
+            'description' => 'required|string',
             'idea_type' => 'nullable|string', // Can be idea type ID or old format (now optional)
             'department' => 'required|string', // Can be department ID or "unknown"
             'benefits' => 'nullable|string',
@@ -239,7 +239,7 @@ class RequestController extends Controller
 
         $validated = $request->validate([
             'title' => 'sometimes|required|string|max:200',
-            'description' => 'sometimes|required|string|min:25',
+            'description' => 'sometimes|required|string',
             'idea_type' => 'nullable|string', // Can be idea type ID
             'department' => 'nullable|string',
             'benefits' => 'nullable|string',
