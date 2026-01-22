@@ -1,0 +1,13 @@
+[2026-01-22 10:43:54] local.INFO: Quick Test: Starting {"username":"c-ibarry@gadd.gov.sa"} 
+[2026-01-22 10:43:54] local.INFO: Quick Test: Using dates {"start":"2026-01-22T00:00:00Z","end":"2026-01-29T10:43:54Z"} 
+[2026-01-22 10:43:54] local.INFO: EWS: Getting calendar events {"username":"c-ibarry@gadd.gov.sa"} 
+[2026-01-22 10:43:54] local.INFO: EWS: Attempting to connect {"server":"mail.gadd.gov.sa/EWS/Exchange.asmx","username":"c-ibarry@gadd.gov.sa","is_email":true} 
+[2026-01-22 10:43:54] local.INFO: EWS: Client initialized successfully  
+[2026-01-22 10:43:54] local.INFO: EWS: Calendar view dates {"start":"2026-01-22T00:00:00Z","end":"2026-01-29T10:43:54Z"} 
+[2026-01-22 10:43:54] local.INFO: EWS: Sending FindItem request  
+[2026-01-22 10:43:54] local.ERROR: EWS: Failed to get calendar events {"username":"c-ibarry@gadd.gov.sa","error":"The request is invalid.","trace":"#0 C:\\xampp\\htdocs\\internal-api\\vendor\\php-ews\\php-ews\\src\\Client.php(1631): SoapClient->__call()
+#1 C:\\xampp\\htdocs\\internal-api\\vendor\\php-ews\\php-ews\\src\\Client.php(670): jamesiarmes\\PhpEws\\Client->makeRequest()
+#2 C:\\xampp\\htdocs\\internal-api\\app\\Services\\ExchangeCalendarService.php(126): jamesiarmes\\PhpEws\\Client->FindItem()
+#3 C:\\xampp\\htdocs\\internal-api\\app\\Http\\Controllers\\CalendarController.php(49): App\\Services\\ExchangeCalendarService->getCalendarEvents()
+#4 C:\\xampp\\htdocs\\internal-a"} 
+[2026-01-22 10:43:54] local.ERROR: Quick Test: Failed {"username":"c-ibarry@gadd.gov.sa","error":"The request is invalid."} 
