@@ -81,6 +81,7 @@ class ExchangeCalendarService
         try {
             $client = $this->getClient($username, $password);
 
+            // Use simpler FindItem with restriction instead of CalendarView
             $request = new FindItemType();
             $request->Traversal = ItemQueryTraversalType::SHALLOW;
             
@@ -92,28 +93,10 @@ class ExchangeCalendarService
             $folder->Id = DistinguishedFolderIdNameType::CALENDAR;
             $request->ParentFolderIds->DistinguishedFolderId[] = $folder;
 
-            $request->CalendarView = new CalendarViewType();
+            // Don't use CalendarView - some Exchange versions don't support it well
+            // Instead, we'll get all items and filter later if needed
             
-            $startDate = $options['startDate'] ?? gmdate('Y-m-d\T00:00:00\Z');
-            $endDate = $options['endDate'] ?? gmdate('Y-m-d\T23:59:59\Z', strtotime('+30 days'));
-            
-            $startDate = preg_replace('/[zZ]$/', '', $startDate);
-            $startDate = preg_replace('/[+-]\d{2}:\d{2}$/', '', $startDate);
-            $startDate = rtrim($startDate) . 'Z';
-            
-            $endDate = preg_replace('/[zZ]$/', '', $endDate);
-            $endDate = preg_replace('/[+-]\d{2}:\d{2}$/', '', $endDate);
-            $endDate = rtrim($endDate) . 'Z';
-            
-            $request->CalendarView->StartDate = $startDate;
-            $request->CalendarView->EndDate = $endDate;
-            
-            Log::info('EWS: Calendar view dates', [
-                'start' => $startDate,
-                'end' => $endDate
-            ]);
-
-            Log::info('EWS: Sending FindItem request');
+            Log::info('EWS: Sending FindItem request (without CalendarView)');
             
             try {
                 $response = $client->FindItem($request);
@@ -159,7 +142,24 @@ class ExchangeCalendarService
 
                 Log::info('EWS: Found items', ['count' => count($items)]);
 
+                // Parse date filters if provided
+                $startFilter = isset($options['startDate']) ? strtotime($options['startDate']) : null;
+                $endFilter = isset($options['endDate']) ? strtotime($options['endDate']) : null;
+
                 foreach ($items as $item) {
+                    // Apply date filtering if specified
+                    if ($startFilter || $endFilter) {
+                        $itemStart = isset($item->Start) ? strtotime($item->Start) : null;
+                        
+                        if ($startFilter && $itemStart && $itemStart < $startFilter) {
+                            continue; // Skip items before start date
+                        }
+                        
+                        if ($endFilter && $itemStart && $itemStart > $endFilter) {
+                            continue; // Skip items after end date
+                        }
+                    }
+                    
                     $events[] = [
                         'id' => $item->ItemId->Id,
                         'change_key' => $item->ItemId->ChangeKey,
