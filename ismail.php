@@ -55,10 +55,16 @@ class ExchangeCalendarService
                 CURLOPT_HTTPAUTH => CURLAUTH_BASIC,
             ]);
 
+            // Set impersonation using the library's method
             if ($targetEmail) {
                 Log::info('EWS: Setting up impersonation', ['target' => $targetEmail]);
-                // Use string constant instead of class constant
-                $client->setImpersonation('SmtpAddress', $targetEmail);
+                
+                // Create impersonation header manually
+                $impersonation = new \jamesiarmes\PhpEws\Type\ExchangeImpersonationType();
+                $impersonation->ConnectingSID = new \jamesiarmes\PhpEws\Type\ConnectingSIDType();
+                $impersonation->ConnectingSID->PrimarySmtpAddress = $targetEmail;
+                
+                $client->setImpersonation($impersonation);
             }
 
             Log::info('EWS: Client initialized successfully');
