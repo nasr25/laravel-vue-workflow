@@ -1,13 +1,12 @@
-[2026-01-22 10:59:03] local.INFO: Quick Test: Starting {"username":"c-ibarry@gadd.gov.sa"} 
-[2026-01-22 10:59:03] local.INFO: Quick Test: Using dates {"start":"2026-01-22T00:00:00Z","end":"2026-01-29T23:59:59Z"} 
-[2026-01-22 10:59:03] local.INFO: EWS: Getting calendar events {"username":"c-ibarry@gadd.gov.sa"} 
-[2026-01-22 10:59:03] local.INFO: EWS: Attempting to connect {"server":"mail.gadd.gov.sa/EWS/Exchange.asmx","username":"c-ibarry@gadd.gov.sa","is_email":true} 
-[2026-01-22 10:59:03] local.INFO: EWS: Client initialized successfully  
-[2026-01-22 10:59:03] local.INFO: EWS: Calendar view dates {"start":"2026-01-22T00:00:00Z","end":"2026-01-29T23:59:59Z"} 
-[2026-01-22 10:59:03] local.INFO: EWS: Sending FindItem request  
-[2026-01-22 10:59:04] local.ERROR: EWS: SOAP Fault {"fault_code":"a:ErrorInvalidRequest","fault_string":"The request is invalid.","detail":"{\"ResponseCode\":\"ErrorInvalidRequest\",\"Message\":\"The request is invalid.\"}","message":"The request is invalid."} 
-[2026-01-22 10:59:04] local.ERROR: EWS: Failed to get calendar events {"username":"c-ibarry@gadd.gov.sa","error":"SOAP Error: The request is invalid.","trace":"#0 C:\\xampp\\htdocs\\internal-api\\app\\Http\\Controllers\\CalendarController.php(49): App\\Services\\ExchangeCalendarService->getCalendarEvents()
+[2026-01-22 11:01:49] local.INFO: Quick Test: Starting {"username":"c-ibarry@gadd.gov.sa"} 
+[2026-01-22 11:01:49] local.INFO: Quick Test: Using dates {"start":"2026-01-22T00:00:00Z","end":"2026-01-29T23:59:59Z"} 
+[2026-01-22 11:01:49] local.INFO: EWS: Getting calendar events {"username":"c-ibarry@gadd.gov.sa"} 
+[2026-01-22 11:01:49] local.INFO: EWS: Attempting to connect {"server":"mail.gadd.gov.sa/EWS/Exchange.asmx","username":"c-ibarry@gadd.gov.sa","is_email":true} 
+[2026-01-22 11:01:49] local.INFO: EWS: Client initialized successfully  
+[2026-01-22 11:01:49] local.INFO: EWS: Sending FindItem request (without CalendarView)  
+[2026-01-22 11:01:49] local.ERROR: EWS: SOAP Fault {"fault_code":"a:ErrorInvalidRequest","fault_string":"The request is invalid.","detail":"{\"ResponseCode\":\"ErrorInvalidRequest\",\"Message\":\"The request is invalid.\"}","message":"The request is invalid."} 
+[2026-01-22 11:01:49] local.ERROR: EWS: Failed to get calendar events {"username":"c-ibarry@gadd.gov.sa","error":"SOAP Error: The request is invalid.","trace":"#0 C:\\xampp\\htdocs\\internal-api\\app\\Http\\Controllers\\CalendarController.php(49): App\\Services\\ExchangeCalendarService->getCalendarEvents()
 #1 C:\\xampp\\htdocs\\internal-api\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Controller.php(54): App\\Http\\Controllers\\CalendarController->quickTest()
 #2 C:\\xampp\\htdocs\\internal-api\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\ControllerDispatcher.php(43): Illuminate\\Routing\\Controller->callAction()
 #3 C:\\xampp\\htdocs\\internal-api\\vendor\\laravel\\framewo"} 
-[2026-01-22 10:59:04] local.ERROR: Quick Test: Failed {"username":"c-ibarry@gadd.gov.sa","error":"SOAP Error: The request is invalid."} 
+[2026-01-22 11:01:49] local.ERROR: Quick Test: Failed {"username":"c-ibarry@gadd.gov.sa","error":"SOAP Error: The request is invalid."} 
