@@ -85,16 +85,7 @@ class ExchangeCalendarService
             $request->Traversal = ItemQueryTraversalType::SHALLOW;
             
             $request->ItemShape = new ItemResponseShapeType();
-            $request->ItemShape->BaseShape = DefaultShapeNamesType::ID_ONLY;
-            
-            $request->ItemShape->AdditionalProperties = new \jamesiarmes\PhpEws\ArrayType\NonEmptyArrayOfPathsToElementType();
-            
-            $props = ['item:Subject', 'calendar:Start', 'calendar:End', 'calendar:Location', 'calendar:Organizer'];
-            foreach ($props as $prop) {
-                $field = new \jamesiarmes\PhpEws\Type\PathToUnindexedFieldType();
-                $field->FieldURI = $prop;
-                $request->ItemShape->AdditionalProperties->FieldURI[] = $field;
-            }
+            $request->ItemShape->BaseShape = DefaultShapeNamesType::DEFAULT_PROPERTIES;
 
             $request->ParentFolderIds = new NonEmptyArrayOfBaseFolderIdsType();
             $folder = new DistinguishedFolderIdType();
@@ -130,13 +121,26 @@ class ExchangeCalendarService
                 Log::error('EWS: SOAP Fault', [
                     'fault_code' => $e->faultcode ?? 'N/A',
                     'fault_string' => $e->faultstring ?? 'N/A',
-                    'detail' => $e->detail ?? 'N/A',
+                    'detail' => isset($e->detail) ? json_encode($e->detail) : 'N/A',
                     'message' => $e->getMessage()
                 ]);
-                throw new \Exception("SOAP Error: " . $e->getMessage());
+                throw new \Exception("SOAP Error: " . ($e->faultstring ?? $e->getMessage()));
+            } catch (\Exception $e) {
+                Log::error('EWS: General Exception', [
+                    'message' => $e->getMessage(),
+                    'code' => $e->getCode(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
+                ]);
+                throw $e;
             }
 
             $events = [];
+            
+            if (!isset($response->ResponseMessages->FindItemResponseMessage[0])) {
+                Log::error('EWS: No response message found');
+                throw new \Exception('Invalid response structure from Exchange');
+            }
             
             $responseMessage = $response->ResponseMessages->FindItemResponseMessage[0];
             
