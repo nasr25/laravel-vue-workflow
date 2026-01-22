@@ -123,14 +123,25 @@ class ExchangeCalendarService
             ]);
 
             Log::info('EWS: Sending FindItem request');
-            $response = $client->FindItem($request);
+            
+            try {
+                $response = $client->FindItem($request);
+            } catch (\SoapFault $e) {
+                Log::error('EWS: SOAP Fault', [
+                    'fault_code' => $e->faultcode ?? 'N/A',
+                    'fault_string' => $e->faultstring ?? 'N/A',
+                    'detail' => $e->detail ?? 'N/A',
+                    'message' => $e->getMessage()
+                ]);
+                throw new \Exception("SOAP Error: " . $e->getMessage());
+            }
 
             $events = [];
             
             $responseMessage = $response->ResponseMessages->FindItemResponseMessage[0];
             
             Log::info('EWS: Response received', [
-                'response_class' => $responseMessage->ResponseClass,
+                'response_class' => $responseMessage->ResponseClass ?? 'N/A',
                 'response_code' => $responseMessage->ResponseCode ?? 'N/A',
                 'message_text' => $responseMessage->MessageText ?? 'N/A'
             ]);

@@ -36,9 +36,9 @@ class CalendarController extends Controller
         Log::info('Quick Test: Starting', ['username' => $username]);
 
         try {
-            // Use proper date format for Exchange
-            $startDate = date('Y-m-d\TH:i:s\Z', strtotime('today'));
-            $endDate = date('Y-m-d\TH:i:s\Z', strtotime('+7 days'));
+            // Use proper date format for Exchange - both should be at start of day or end of day
+            $startDate = gmdate('Y-m-d\T00:00:00\Z', strtotime('today'));
+            $endDate = gmdate('Y-m-d\T23:59:59\Z', strtotime('+7 days'));
             
             Log::info('Quick Test: Using dates', [
                 'start' => $startDate,
