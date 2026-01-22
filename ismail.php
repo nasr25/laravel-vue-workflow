@@ -2,262 +2,181 @@
 
 namespace App\Services;
 
-use jamesiarmes\PhpEws\Client;
-use jamesiarmes\PhpEws\Request\FindItemType;
-use jamesiarmes\PhpEws\Request\CreateItemType;
-use jamesiarmes\PhpEws\Request\UpdateItemType;
-use jamesiarmes\PhpEws\Request\DeleteItemType;
-use jamesiarmes\PhpEws\ArrayType\NonEmptyArrayOfBaseFolderIdsType;
-use jamesiarmes\PhpEws\ArrayType\NonEmptyArrayOfBaseItemIdsType;
-use jamesiarmes\PhpEws\Enumeration\CalendarItemCreateOrDeleteOperationType;
-use jamesiarmes\PhpEws\Enumeration\CalendarItemUpdateOperationType;
-use jamesiarmes\PhpEws\Enumeration\DefaultShapeNamesType;
-use jamesiarmes\PhpEws\Enumeration\DisposalType;
-use jamesiarmes\PhpEws\Enumeration\DistinguishedFolderIdNameType;
-use jamesiarmes\PhpEws\Enumeration\ItemQueryTraversalType;
-use jamesiarmes\PhpEws\Enumeration\ResponseClassType;
-use jamesiarmes\PhpEws\Type\CalendarItemType;
-use jamesiarmes\PhpEws\Type\DistinguishedFolderIdType;
-use jamesiarmes\PhpEws\Type\ItemIdType;
-use jamesiarmes\PhpEws\Type\ItemResponseShapeType;
 use Illuminate\Support\Facades\Log;
 
 class ExchangeCalendarService
 {
     private $server;
     private $version;
+    private $serviceUsername;
+    private $servicePassword;
 
     public function __construct()
     {
         $this->server = config('services.exchange.server');
-        $this->version = config('services.exchange.version', Client::VERSION_2016);
+        $this->version = config('services.exchange.version', 'Exchange2016');
     }
 
-    private function getClient(string $serviceUsername, string $servicePassword, string $targetEmail = null): Client
+    private function escapeXml($value)
     {
-        $server = str_replace(['https://', 'http://'], '', $this->server);
+        return htmlspecialchars($value ?? '', ENT_XML1 | ENT_QUOTES, 'UTF-8');
+    }
 
-        Log::info('EWS: Attempting to connect', [
-            'server' => $server,
-            'service_account' => $serviceUsername,
-            'target_user' => $targetEmail ?? 'N/A',
-            'using_impersonation' => $targetEmail !== null
-        ]);
+    private function sendSoapRequest(string $soapAction, string $soapXml, string $username, string $password)
+    {
+        $url = 'https://' . $this->server;
+        
+        $headers = [
+            'Content-Type: text/xml; charset=utf-8',
+            'SOAPAction: "http://schemas.microsoft.com/exchange/services/2006/messages/' . $soapAction . '"'
+        ];
 
-        try {
-            $client = new Client($server, $serviceUsername, $servicePassword, $this->version);
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $soapXml);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+        curl_setopt($ch, CURLOPT_USERPWD, $username . ':' . $password);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
-            $client->setCurlOptions([
-                CURLOPT_SSL_VERIFYPEER => false,
-                CURLOPT_SSL_VERIFYHOST => false,
-                CURLOPT_TIMEOUT => 30,
-                CURLOPT_CONNECTTIMEOUT => 10,
-                CURLOPT_HTTPAUTH => CURLAUTH_BASIC,
-            ]);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
 
-            // Set impersonation using the library's method
-            if ($targetEmail) {
-                Log::info('EWS: Setting up impersonation', ['target' => $targetEmail]);
-                
-                // Create impersonation header manually
-                $impersonation = new \jamesiarmes\PhpEws\Type\ExchangeImpersonationType();
-                $impersonation->ConnectingSID = new \jamesiarmes\PhpEws\Type\ConnectingSIDType();
-                $impersonation->ConnectingSID->PrimarySmtpAddress = $targetEmail;
-                
-                $client->setImpersonation($impersonation);
-            }
-
-            Log::info('EWS: Client initialized successfully');
-            return $client;
-
-        } catch (\Exception $e) {
-            Log::error('EWS: Failed to initialize client', [
-                'server' => $server,
-                'service_account' => $serviceUsername,
-                'error' => $e->getMessage()
-            ]);
-            throw new \Exception("Cannot connect to Exchange server. Error: " . $e->getMessage());
+        if ($error) {
+            throw new \Exception("cURL error: " . $error);
         }
+
+        return ['status' => $httpCode, 'body' => $response];
+    }
+
+    private function buildFindItemSoap(string $targetEmail, string $startIso, string $endIso)
+    {
+        $version = $this->version;
+        
+        return <<<XML
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+  xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types"
+  xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages">
+  <soap:Header>
+    <t:RequestServerVersion Version="{$version}" />
+    <t:ExchangeImpersonation>
+      <t:ConnectingSID>
+        <t:PrimarySmtpAddress>{$this->escapeXml($targetEmail)}</t:PrimarySmtpAddress>
+      </t:ConnectingSID>
+    </t:ExchangeImpersonation>
+  </soap:Header>
+  <soap:Body>
+    <m:FindItem Traversal="Shallow">
+      <m:ItemShape>
+        <t:BaseShape>IdOnly</t:BaseShape>
+        <t:AdditionalProperties>
+          <t:FieldURI FieldURI="item:Subject"/>
+          <t:FieldURI FieldURI="calendar:Start"/>
+          <t:FieldURI FieldURI="calendar:End"/>
+          <t:FieldURI FieldURI="calendar:Location"/>
+          <t:FieldURI FieldURI="calendar:Organizer"/>
+          <t:FieldURI FieldURI="calendar:IsAllDayEvent"/>
+        </t:AdditionalProperties>
+      </m:ItemShape>
+      <m:CalendarView StartDate="{$this->escapeXml($startIso)}" EndDate="{$this->escapeXml($endIso)}" />
+      <m:ParentFolderIds>
+        <t:DistinguishedFolderId Id="calendar" />
+      </m:ParentFolderIds>
+    </m:FindItem>
+  </soap:Body>
+</soap:Envelope>
+XML;
     }
 
     public function getCalendarEvents(string $serviceUsername, string $servicePassword, string $targetEmail = null, array $options = []): array
     {
-        Log::info('EWS: Getting calendar events', [
+        $impersonateUser = $targetEmail ?? $serviceUsername;
+        
+        Log::info('EWS: Getting calendar events (Direct SOAP)', [
             'service_account' => $serviceUsername,
-            'target_user' => $targetEmail ?? $serviceUsername
+            'target_user' => $impersonateUser
         ]);
 
         try {
-            $impersonateUser = $targetEmail ?? $serviceUsername;
-            $client = $this->getClient($serviceUsername, $servicePassword, $targetEmail ? $impersonateUser : null);
+            $startIso = $options['startDate'] ?? gmdate('Y-m-d\TH:i:s\Z');
+            $endIso = $options['endDate'] ?? gmdate('Y-m-d\T23:59:59\Z', strtotime('+30 days'));
 
-            $folderRequest = new \jamesiarmes\PhpEws\Request\GetFolderType();
-            $folderRequest->FolderShape = new \jamesiarmes\PhpEws\Type\FolderResponseShapeType();
-            $folderRequest->FolderShape->BaseShape = DefaultShapeNamesType::DEFAULT_PROPERTIES;
+            $soap = $this->buildFindItemSoap($impersonateUser, $startIso, $endIso);
+            
+            Log::info('EWS: Sending SOAP request');
+            
+            $result = $this->sendSoapRequest('FindItem', $soap, $serviceUsername, $servicePassword);
 
-            $folderRequest->FolderIds = new NonEmptyArrayOfBaseFolderIdsType();
-            $folder = new DistinguishedFolderIdType();
-            $folder->Id = DistinguishedFolderIdNameType::CALENDAR;
-            
-            if ($targetEmail) {
-                $folder->Mailbox = new \jamesiarmes\PhpEws\Type\EmailAddressType();
-                $folder->Mailbox->EmailAddress = $targetEmail;
-            }
-            
-            $folderRequest->FolderIds->DistinguishedFolderId[] = $folder;
-
-            Log::info('EWS: Testing calendar access');
-            
-            try {
-                $folderResponse = $client->GetFolder($folderRequest);
-                
-                if ($folderResponse->ResponseMessages->GetFolderResponseMessage[0]->ResponseClass === ResponseClassType::SUCCESS) {
-                    Log::info('EWS: Calendar folder accessible');
-                } else {
-                    $errorCode = $folderResponse->ResponseMessages->GetFolderResponseMessage[0]->ResponseCode ?? 'Unknown';
-                    $errorMsg = $folderResponse->ResponseMessages->GetFolderResponseMessage[0]->MessageText ?? 'Unknown';
-                    Log::error('EWS: Calendar folder not accessible', [
-                        'code' => $errorCode,
-                        'message' => $errorMsg
-                    ]);
-                    throw new \Exception("Cannot access calendar: {$errorCode} - {$errorMsg}");
-                }
-            } catch (\SoapFault $e) {
-                Log::error('EWS: SOAP Fault accessing folder', [
-                    'fault' => $e->faultstring ?? $e->getMessage()
-                ]);
-                throw new \Exception('Calendar access denied: ' . ($e->faultstring ?? $e->getMessage()));
+            if ($result['status'] !== 200) {
+                Log::error('EWS: HTTP error', ['status' => $result['status']]);
+                throw new \Exception("HTTP error: " . $result['status']);
             }
 
-            $findRequest = new FindItemType();
-            $findRequest->Traversal = ItemQueryTraversalType::SHALLOW;
-            
-            $findRequest->ItemShape = new ItemResponseShapeType();
-            $findRequest->ItemShape->BaseShape = DefaultShapeNamesType::ID_ONLY;
+            // Parse XML response
+            $xml = simplexml_load_string($result['body']);
+            $xml->registerXPathNamespace('s', 'http://schemas.xmlsoap.org/soap/envelope/');
+            $xml->registerXPathNamespace('m', 'http://schemas.microsoft.com/exchange/services/2006/messages');
+            $xml->registerXPathNamespace('t', 'http://schemas.microsoft.com/exchange/services/2006/types');
 
-            $findRequest->ParentFolderIds = new NonEmptyArrayOfBaseFolderIdsType();
-            $calFolder = new DistinguishedFolderIdType();
-            $calFolder->Id = DistinguishedFolderIdNameType::CALENDAR;
+            // Check response class
+            $responseMessages = $xml->xpath('//m:FindItemResponseMessage');
             
-            if ($targetEmail) {
-                $calFolder->Mailbox = new \jamesiarmes\PhpEws\Type\EmailAddressType();
-                $calFolder->Mailbox->EmailAddress = $targetEmail;
+            if (empty($responseMessages)) {
+                Log::error('EWS: No response message found');
+                throw new \Exception('Invalid response from Exchange');
             }
-            
-            $findRequest->ParentFolderIds->DistinguishedFolderId[] = $calFolder;
 
-            $findRequest->IndexedPageItemView = new \jamesiarmes\PhpEws\Type\IndexedPageViewType();
-            $findRequest->IndexedPageItemView->MaxEntriesReturned = 100;
-            $findRequest->IndexedPageItemView->Offset = 0;
-            $findRequest->IndexedPageItemView->BasePoint = \jamesiarmes\PhpEws\Enumeration\IndexBasePointType::BEGINNING;
+            $responseMsg = $responseMessages[0];
+            $responseClass = (string)$responseMsg['ResponseClass'];
             
-            Log::info('EWS: Finding calendar items');
-            
-            try {
-                $response = $client->FindItem($findRequest);
-            } catch (\SoapFault $e) {
-                Log::error('EWS: SOAP Fault finding items', [
-                    'fault_code' => $e->faultcode ?? 'N/A',
-                    'fault_string' => $e->faultstring ?? 'N/A'
-                ]);
-                throw new \Exception("Error finding items: " . ($e->faultstring ?? $e->getMessage()));
+            Log::info('EWS: Response received', [
+                'response_class' => $responseClass,
+                'response_code' => (string)$responseMsg->m_ResponseCode
+            ]);
+
+            if ($responseClass !== 'Success') {
+                $errorCode = (string)$responseMsg->m_ResponseCode;
+                $errorMsg = (string)$responseMsg->m_MessageText;
+                throw new \Exception("EWS Error: {$errorCode} - {$errorMsg}");
             }
+
+            // Extract calendar items
+            $items = $xml->xpath('//t:CalendarItem');
+            
+            Log::info('EWS: Found items', ['count' => count($items)]);
 
             $events = [];
             
-            if (!isset($response->ResponseMessages->FindItemResponseMessage[0])) {
-                throw new \Exception('Invalid response structure from Exchange');
-            }
-            
-            $responseMessage = $response->ResponseMessages->FindItemResponseMessage[0];
-            
-            Log::info('EWS: FindItem response', [
-                'response_class' => $responseMessage->ResponseClass ?? 'N/A',
-                'response_code' => $responseMessage->ResponseCode ?? 'N/A'
-            ]);
-            
-            if ($responseMessage->ResponseClass === ResponseClassType::SUCCESS) {
-                $itemIds = [];
-                $items = $responseMessage->RootFolder->Items->CalendarItem ?? [];
+            foreach ($items as $item) {
+                $item->registerXPathNamespace('t', 'http://schemas.microsoft.com/exchange/services/2006/types');
                 
-                if (!is_array($items)) {
-                    $items = $items ? [$items] : [];
-                }
+                $itemId = $item->xpath('.//t:ItemId');
+                $subject = $item->xpath('.//t:Subject');
+                $start = $item->xpath('.//t:Start');
+                $end = $item->xpath('.//t:End');
+                $location = $item->xpath('.//t:Location');
+                $organizer = $item->xpath('.//t:Organizer/t:Mailbox/t:EmailAddress');
+                $isAllDay = $item->xpath('.//t:IsAllDayEvent');
 
-                Log::info('EWS: Found item IDs', ['count' => count($items)]);
-                
-                foreach ($items as $item) {
-                    $itemIds[] = $item->ItemId;
-                }
-                
-                if (count($itemIds) > 0) {
-                    $getRequest = new \jamesiarmes\PhpEws\Request\GetItemType();
-                    $getRequest->ItemShape = new ItemResponseShapeType();
-                    $getRequest->ItemShape->BaseShape = DefaultShapeNamesType::DEFAULT_PROPERTIES;
-                    
-                    $getRequest->ItemIds = new NonEmptyArrayOfBaseItemIdsType();
-                    foreach ($itemIds as $itemId) {
-                        $getRequest->ItemIds->ItemId[] = $itemId;
-                    }
-                    
-                    Log::info('EWS: Getting full item details');
-                    $getResponse = $client->GetItem($getRequest);
-                    
-                    $getItems = $getResponse->ResponseMessages->GetItemResponseMessage ?? [];
-                    if (!is_array($getItems)) {
-                        $getItems = [$getItems];
-                    }
-                    
-                    foreach ($getItems as $getMessage) {
-                        if ($getMessage->ResponseClass === ResponseClassType::SUCCESS) {
-                            $calItems = $getMessage->Items->CalendarItem ?? [];
-                            if (!is_array($calItems)) {
-                                $calItems = $calItems ? [$calItems] : [];
-                            }
-                            
-                            foreach ($calItems as $item) {
-                                $startFilter = isset($options['startDate']) ? strtotime($options['startDate']) : null;
-                                $endFilter = isset($options['endDate']) ? strtotime($options['endDate']) : null;
-                                
-                                if ($startFilter || $endFilter) {
-                                    $itemStart = isset($item->Start) ? strtotime($item->Start) : null;
-                                    
-                                    if ($startFilter && $itemStart && $itemStart < $startFilter) {
-                                        continue;
-                                    }
-                                    
-                                    if ($endFilter && $itemStart && $itemStart > $endFilter) {
-                                        continue;
-                                    }
-                                }
-                                
-                                $events[] = [
-                                    'id' => $item->ItemId->Id,
-                                    'change_key' => $item->ItemId->ChangeKey,
-                                    'subject' => $item->Subject ?? '',
-                                    'start' => $item->Start ?? null,
-                                    'end' => $item->End ?? null,
-                                    'location' => $item->Location ?? '',
-                                    'organizer' => $item->Organizer->Mailbox->EmailAddress ?? '',
-                                    'is_all_day' => $item->IsAllDayEvent ?? false,
-                                ];
-                            }
-                        }
-                    }
-                }
-
-                Log::info('EWS: Successfully retrieved events', ['count' => count($events)]);
-            } else {
-                $errorCode = $responseMessage->ResponseCode ?? 'Unknown';
-                $errorMsg = $responseMessage->MessageText ?? 'Unknown';
-                
-                Log::error('EWS: Request failed', [
-                    'error_code' => $errorCode,
-                    'error_message' => $errorMsg
-                ]);
-                
-                throw new \Exception("EWS Error: {$errorCode} - {$errorMsg}");
+                $events[] = [
+                    'id' => $itemId ? (string)$itemId[0]['Id'] : null,
+                    'change_key' => $itemId ? (string)$itemId[0]['ChangeKey'] : null,
+                    'subject' => $subject ? (string)$subject[0] : '',
+                    'start' => $start ? (string)$start[0] : null,
+                    'end' => $end ? (string)$end[0] : null,
+                    'location' => $location ? (string)$location[0] : '',
+                    'organizer' => $organizer ? (string)$organizer[0] : '',
+                    'is_all_day' => $isAllDay ? (strtolower((string)$isAllDay[0]) === 'true') : false,
+                ];
             }
+
+            Log::info('EWS: Successfully retrieved events', ['count' => count($events)]);
 
             return $events;
 
@@ -271,68 +190,85 @@ class ExchangeCalendarService
         }
     }
 
+    private function buildCreateItemSoap(string $targetEmail, array $eventData)
+    {
+        $version = $this->version;
+        $subject = $this->escapeXml($eventData['subject']);
+        $body = $this->escapeXml($eventData['body'] ?? '');
+        $start = $this->escapeXml($eventData['start']);
+        $end = $this->escapeXml($eventData['end']);
+        $location = $this->escapeXml($eventData['location'] ?? '');
+
+        return <<<XML
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+  xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types"
+  xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages">
+  <soap:Header>
+    <t:RequestServerVersion Version="{$version}" />
+    <t:ExchangeImpersonation>
+      <t:ConnectingSID>
+        <t:PrimarySmtpAddress>{$this->escapeXml($targetEmail)}</t:PrimarySmtpAddress>
+      </t:ConnectingSID>
+    </t:ExchangeImpersonation>
+  </soap:Header>
+  <soap:Body>
+    <m:CreateItem SendMeetingInvitations="SendToNone">
+      <m:SavedItemFolderId>
+        <t:DistinguishedFolderId Id="calendar" />
+      </m:SavedItemFolderId>
+      <m:Items>
+        <t:CalendarItem>
+          <t:Subject>{$subject}</t:Subject>
+          <t:Body BodyType="HTML">{$body}</t:Body>
+          <t:Start>{$start}</t:Start>
+          <t:End>{$end}</t:End>
+          <t:Location>{$location}</t:Location>
+        </t:CalendarItem>
+      </m:Items>
+    </m:CreateItem>
+  </soap:Body>
+</soap:Envelope>
+XML;
+    }
+
     public function createEvent(string $serviceUsername, string $servicePassword, string $targetEmail, array $eventData): array
     {
-        Log::info('EWS: Creating event', ['target' => $targetEmail, 'subject' => $eventData['subject'] ?? '']);
+        Log::info('EWS: Creating event (Direct SOAP)', ['target' => $targetEmail]);
 
         try {
-            $client = $this->getClient($serviceUsername, $servicePassword, $targetEmail);
+            $soap = $this->buildCreateItemSoap($targetEmail, $eventData);
+            $result = $this->sendSoapRequest('CreateItem', $soap, $serviceUsername, $servicePassword);
 
-            $request = new CreateItemType();
-            $request->SendMeetingInvitations = CalendarItemCreateOrDeleteOperationType::SEND_TO_NONE;
-            $request->SavedItemFolderId = new NonEmptyArrayOfBaseFolderIdsType();
-            
-            $folder = new DistinguishedFolderIdType();
-            $folder->Id = DistinguishedFolderIdNameType::CALENDAR;
-            
-            if ($targetEmail) {
-                $folder->Mailbox = new \jamesiarmes\PhpEws\Type\EmailAddressType();
-                $folder->Mailbox->EmailAddress = $targetEmail;
-            }
-            
-            $request->SavedItemFolderId->DistinguishedFolderId[] = $folder;
-
-            $event = new CalendarItemType();
-            $event->Subject = $eventData['subject'];
-            
-            $startDate = preg_replace('/([+-]\d{2}:\d{2}|Z)$/', '', $eventData['start']) . 'Z';
-            $endDate = preg_replace('/([+-]\d{2}:\d{2}|Z)$/', '', $eventData['end']) . 'Z';
-            
-            $event->Start = $startDate;
-            $event->End = $endDate;
-            
-            if (isset($eventData['location'])) {
-                $event->Location = $eventData['location'];
+            if ($result['status'] !== 200) {
+                throw new \Exception("HTTP error: " . $result['status']);
             }
 
-            if (isset($eventData['body'])) {
-                $event->Body = new \jamesiarmes\PhpEws\Type\BodyType();
-                $event->Body->BodyType = \jamesiarmes\PhpEws\Enumeration\BodyTypeType::HTML;
-                $event->Body->_ = $eventData['body'];
+            $xml = simplexml_load_string($result['body']);
+            $xml->registerXPathNamespace('m', 'http://schemas.microsoft.com/exchange/services/2006/messages');
+            $xml->registerXPathNamespace('t', 'http://schemas.microsoft.com/exchange/services/2006/types');
+
+            $responseMessages = $xml->xpath('//m:CreateItemResponseMessage');
+            
+            if (empty($responseMessages)) {
+                throw new \Exception('Invalid response from Exchange');
             }
 
-            if (isset($eventData['is_all_day'])) {
-                $event->IsAllDayEvent = $eventData['is_all_day'];
+            $responseClass = (string)$responseMessages[0]['ResponseClass'];
+
+            if ($responseClass !== 'Success') {
+                throw new \Exception('Failed to create event');
             }
 
-            $request->Items = new \jamesiarmes\PhpEws\ArrayType\NonEmptyArrayOfAllItemsType();
-            $request->Items->CalendarItem[] = $event;
+            $itemId = $xml->xpath('//t:ItemId');
 
-            $response = $client->CreateItem($request);
+            Log::info('EWS: Event created successfully');
 
-            if ($response->ResponseMessages->CreateItemResponseMessage[0]->ResponseClass === ResponseClassType::SUCCESS) {
-                $item = $response->ResponseMessages->CreateItemResponseMessage[0]->Items->CalendarItem[0];
-                
-                Log::info('EWS: Event created successfully');
-                
-                return [
-                    'id' => $item->ItemId->Id,
-                    'change_key' => $item->ItemId->ChangeKey,
-                    'subject' => $eventData['subject']
-                ];
-            }
-
-            throw new \Exception('Failed to create event');
+            return [
+                'id' => $itemId ? (string)$itemId[0]['Id'] : null,
+                'change_key' => $itemId ? (string)$itemId[0]['ChangeKey'] : null,
+                'subject' => $eventData['subject']
+            ];
 
         } catch (\Exception $e) {
             Log::error('EWS: Failed to create event', ['error' => $e->getMessage()]);
@@ -342,108 +278,11 @@ class ExchangeCalendarService
 
     public function updateEvent(string $serviceUsername, string $servicePassword, string $targetEmail, string $itemId, string $changeKey, array $eventData): array
     {
-        Log::info('EWS: Updating event');
-
-        try {
-            $client = $this->getClient($serviceUsername, $servicePassword, $targetEmail);
-
-            $request = new UpdateItemType();
-            $request->SendMeetingInvitationsOrCancellations = CalendarItemUpdateOperationType::SEND_TO_NONE;
-            $request->ConflictResolution = \jamesiarmes\PhpEws\Enumeration\ConflictResolutionType::ALWAYS_OVERWRITE;
-
-            $change = new \jamesiarmes\PhpEws\Type\ItemChangeType();
-            $change->ItemId = new ItemIdType();
-            $change->ItemId->Id = $itemId;
-            $change->ItemId->ChangeKey = $changeKey;
-
-            $change->Updates = new \jamesiarmes\PhpEws\ArrayType\NonEmptyArrayOfItemChangeDescriptionsType();
-
-            foreach ($eventData as $key => $value) {
-                $field = new \jamesiarmes\PhpEws\Type\SetItemFieldType();
-                $field->CalendarItem = new CalendarItemType();
-                
-                switch ($key) {
-                    case 'subject':
-                        $field->FieldURI = new \jamesiarmes\PhpEws\Type\PathToUnindexedFieldType();
-                        $field->FieldURI->FieldURI = 'item:Subject';
-                        $field->CalendarItem->Subject = $value;
-                        break;
-                    case 'location':
-                        $field->FieldURI = new \jamesiarmes\PhpEws\Type\PathToUnindexedFieldType();
-                        $field->FieldURI->FieldURI = 'calendar:Location';
-                        $field->CalendarItem->Location = $value;
-                        break;
-                    case 'start':
-                        $field->FieldURI = new \jamesiarmes\PhpEws\Type\PathToUnindexedFieldType();
-                        $field->FieldURI->FieldURI = 'calendar:Start';
-                        $value = preg_replace('/([+-]\d{2}:\d{2}|Z)$/', '', $value) . 'Z';
-                        $field->CalendarItem->Start = $value;
-                        break;
-                    case 'end':
-                        $field->FieldURI = new \jamesiarmes\PhpEws\Type\PathToUnindexedFieldType();
-                        $field->FieldURI->FieldURI = 'calendar:End';
-                        $value = preg_replace('/([+-]\d{2}:\d{2}|Z)$/', '', $value) . 'Z';
-                        $field->CalendarItem->End = $value;
-                        break;
-                }
-                
-                $change->Updates->SetItemField[] = $field;
-            }
-
-            $request->ItemChanges = new \jamesiarmes\PhpEws\ArrayType\NonEmptyArrayOfItemChangesType();
-            $request->ItemChanges->ItemChange[] = $change;
-
-            $response = $client->UpdateItem($request);
-
-            if ($response->ResponseMessages->UpdateItemResponseMessage[0]->ResponseClass === ResponseClassType::SUCCESS) {
-                $item = $response->ResponseMessages->UpdateItemResponseMessage[0]->Items->CalendarItem[0];
-                
-                Log::info('EWS: Event updated successfully');
-                
-                return [
-                    'id' => $item->ItemId->Id,
-                    'change_key' => $item->ItemId->ChangeKey
-                ];
-            }
-
-            throw new \Exception('Failed to update event');
-
-        } catch (\Exception $e) {
-            Log::error('EWS: Failed to update event', ['error' => $e->getMessage()]);
-            throw $e;
-        }
+        throw new \Exception('Update not implemented yet');
     }
 
     public function deleteEvent(string $serviceUsername, string $servicePassword, string $targetEmail, string $itemId, string $changeKey): bool
     {
-        Log::info('EWS: Deleting event');
-
-        try {
-            $client = $this->getClient($serviceUsername, $servicePassword, $targetEmail);
-
-            $request = new DeleteItemType();
-            $request->DeleteType = DisposalType::HARD_DELETE;
-            $request->SendMeetingCancellations = CalendarItemCreateOrDeleteOperationType::SEND_TO_NONE;
-
-            $request->ItemIds = new NonEmptyArrayOfBaseItemIdsType();
-            $item = new ItemIdType();
-            $item->Id = $itemId;
-            $item->ChangeKey = $changeKey;
-            $request->ItemIds->ItemId[] = $item;
-
-            $response = $client->DeleteItem($request);
-
-            $success = $response->ResponseMessages->DeleteItemResponseMessage[0]->ResponseClass === ResponseClassType::SUCCESS;
-            
-            if ($success) {
-                Log::info('EWS: Event deleted successfully');
-            }
-            
-            return $success;
-
-        } catch (\Exception $e) {
-            Log::error('EWS: Failed to delete event', ['error' => $e->getMessage()]);
-            throw $e;
-        }
+        throw new \Exception('Delete not implemented yet');
     }
 }
