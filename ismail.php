@@ -4,7 +4,6 @@ namespace App\Services;
 
 use jamesiarmes\PhpEws\Client;
 use jamesiarmes\PhpEws\Request\FindItemType;
-use jamesiarmes\PhpEws\Request\GetItemType;
 use jamesiarmes\PhpEws\Request\CreateItemType;
 use jamesiarmes\PhpEws\Request\UpdateItemType;
 use jamesiarmes\PhpEws\Request\DeleteItemType;
@@ -40,7 +39,6 @@ class ExchangeCalendarService
      */
     private function getClient(string $username, string $password): Client
     {
-        // Ensure server URL doesn't have https:// prefix
         $server = str_replace(['https://', 'http://'], '', $this->server);
 
         Log::info('EWS: Attempting to connect', [
@@ -52,7 +50,6 @@ class ExchangeCalendarService
         try {
             $client = new Client($server, $username, $password, $this->version);
 
-            // Use Basic Auth (since browser login works)
             $client->setCurlOptions([
                 CURLOPT_SSL_VERIFYPEER => false,
                 CURLOPT_SSL_VERIFYHOST => false,
@@ -88,23 +85,34 @@ class ExchangeCalendarService
             $request->Traversal = ItemQueryTraversalType::SHALLOW;
             
             $request->ItemShape = new ItemResponseShapeType();
-            $request->ItemShape->BaseShape = DefaultShapeNamesType::ALL_PROPERTIES;
+            $request->ItemShape->BaseShape = DefaultShapeNamesType::ID_ONLY;
+            
+            $request->ItemShape->AdditionalProperties = new \jamesiarmes\PhpEws\ArrayType\NonEmptyArrayOfPathsToElementType();
+            
+            $props = ['item:Subject', 'calendar:Start', 'calendar:End', 'calendar:Location', 'calendar:Organizer'];
+            foreach ($props as $prop) {
+                $field = new \jamesiarmes\PhpEws\Type\PathToUnindexedFieldType();
+                $field->FieldURI = $prop;
+                $request->ItemShape->AdditionalProperties->FieldURI[] = $field;
+            }
 
             $request->ParentFolderIds = new NonEmptyArrayOfBaseFolderIdsType();
             $folder = new DistinguishedFolderIdType();
             $folder->Id = DistinguishedFolderIdNameType::CALENDAR;
             $request->ParentFolderIds->DistinguishedFolderId[] = $folder;
 
-            // Calendar view with proper ISO 8601 format
             $request->CalendarView = new CalendarViewType();
             
-            // Ensure dates are in proper format
-            $startDate = $options['startDate'] ?? date('Y-m-d\TH:i:s\Z');
-            $endDate = $options['endDate'] ?? date('Y-m-d\TH:i:s\Z', strtotime('+30 days'));
+            $startDate = $options['startDate'] ?? gmdate('Y-m-d\T00:00:00\Z');
+            $endDate = $options['endDate'] ?? gmdate('Y-m-d\T23:59:59\Z', strtotime('+30 days'));
             
-            // Remove timezone if present and add Z (UTC)
-            $startDate = preg_replace('/([+-]\d{2}:\d{2}|Z)$/', '', $startDate) . 'Z';
-            $endDate = preg_replace('/([+-]\d{2}:\d{2}|Z)$/', '', $endDate) . 'Z';
+            $startDate = preg_replace('/[zZ]$/', '', $startDate);
+            $startDate = preg_replace('/[+-]\d{2}:\d{2}$/', '', $startDate);
+            $startDate = rtrim($startDate) . 'Z';
+            
+            $endDate = preg_replace('/[zZ]$/', '', $endDate);
+            $endDate = preg_replace('/[+-]\d{2}:\d{2}$/', '', $endDate);
+            $endDate = rtrim($endDate) . 'Z';
             
             $request->CalendarView->StartDate = $startDate;
             $request->CalendarView->EndDate = $endDate;
@@ -119,8 +127,16 @@ class ExchangeCalendarService
 
             $events = [];
             
-            if ($response->ResponseMessages->FindItemResponseMessage[0]->ResponseClass === ResponseClassType::SUCCESS) {
-                $items = $response->ResponseMessages->FindItemResponseMessage[0]->RootFolder->Items->CalendarItem ?? [];
+            $responseMessage = $response->ResponseMessages->FindItemResponseMessage[0];
+            
+            Log::info('EWS: Response received', [
+                'response_class' => $responseMessage->ResponseClass,
+                'response_code' => $responseMessage->ResponseCode ?? 'N/A',
+                'message_text' => $responseMessage->MessageText ?? 'N/A'
+            ]);
+            
+            if ($responseMessage->ResponseClass === ResponseClassType::SUCCESS) {
+                $items = $responseMessage->RootFolder->Items->CalendarItem ?? [];
                 
                 if (!is_array($items)) {
                     $items = $items ? [$items] : [];
@@ -137,15 +153,14 @@ class ExchangeCalendarService
                         'end' => $item->End ?? null,
                         'location' => $item->Location ?? '',
                         'organizer' => $item->Organizer->Mailbox->EmailAddress ?? '',
-                        'body' => $item->Body->_ ?? '',
                         'is_all_day' => $item->IsAllDayEvent ?? false,
                     ];
                 }
 
                 Log::info('EWS: Successfully retrieved events', ['count' => count($events)]);
             } else {
-                $errorCode = $response->ResponseMessages->FindItemResponseMessage[0]->ResponseCode ?? 'Unknown';
-                $errorMsg = $response->ResponseMessages->FindItemResponseMessage[0]->MessageText ?? 'Unknown';
+                $errorCode = $responseMessage->ResponseCode ?? 'Unknown';
+                $errorMsg = $responseMessage->MessageText ?? 'Unknown';
                 
                 Log::error('EWS: Request failed', [
                     'error_code' => $errorCode,
@@ -160,7 +175,8 @@ class ExchangeCalendarService
         } catch (\Exception $e) {
             Log::error('EWS: Failed to get calendar events', [
                 'username' => $username,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => substr($e->getTraceAsString(), 0, 500)
             ]);
             throw $e;
         }
@@ -187,11 +203,9 @@ class ExchangeCalendarService
             $event = new CalendarItemType();
             $event->Subject = $eventData['subject'];
             
-            // Ensure dates are in proper format
             $startDate = $eventData['start'];
             $endDate = $eventData['end'];
             
-            // Remove timezone if present and add Z (UTC)
             $startDate = preg_replace('/([+-]\d{2}:\d{2}|Z)$/', '', $startDate) . 'Z';
             $endDate = preg_replace('/([+-]\d{2}:\d{2}|Z)$/', '', $endDate) . 'Z';
             
@@ -279,14 +293,12 @@ class ExchangeCalendarService
                     case 'start':
                         $field->FieldURI = new \jamesiarmes\PhpEws\Type\PathToUnindexedFieldType();
                         $field->FieldURI->FieldURI = 'calendar:Start';
-                        // Fix date format
                         $value = preg_replace('/([+-]\d{2}:\d{2}|Z)$/', '', $value) . 'Z';
                         $field->CalendarItem->Start = $value;
                         break;
                     case 'end':
                         $field->FieldURI = new \jamesiarmes\PhpEws\Type\PathToUnindexedFieldType();
                         $field->FieldURI->FieldURI = 'calendar:End';
-                        // Fix date format
                         $value = preg_replace('/([+-]\d{2}:\d{2}|Z)$/', '', $value) . 'Z';
                         $field->CalendarItem->End = $value;
                         break;
