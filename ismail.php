@@ -81,47 +81,70 @@ class ExchangeCalendarService
         try {
             $client = $this->getClient($username, $password);
 
-            // Use simpler FindItem with restriction instead of CalendarView
-            $request = new FindItemType();
-            $request->Traversal = ItemQueryTraversalType::SHALLOW;
-            
-            $request->ItemShape = new ItemResponseShapeType();
-            $request->ItemShape->BaseShape = DefaultShapeNamesType::DEFAULT_PROPERTIES;
+            // Use GetFolder to access calendar
+            $request = new \jamesiarmes\PhpEws\Request\GetFolderType();
+            $request->FolderShape = new \jamesiarmes\PhpEws\Type\FolderResponseShapeType();
+            $request->FolderShape->BaseShape = DefaultShapeNamesType::DEFAULT_PROPERTIES;
 
-            $request->ParentFolderIds = new NonEmptyArrayOfBaseFolderIdsType();
+            $request->FolderIds = new NonEmptyArrayOfBaseFolderIdsType();
             $folder = new DistinguishedFolderIdType();
             $folder->Id = DistinguishedFolderIdNameType::CALENDAR;
-            $request->ParentFolderIds->DistinguishedFolderId[] = $folder;
+            $request->FolderIds->DistinguishedFolderId[] = $folder;
 
-            // Don't use CalendarView - some Exchange versions don't support it well
-            // Instead, we'll get all items and filter later if needed
-            
-            Log::info('EWS: Sending FindItem request (without CalendarView)');
+            Log::info('EWS: Testing calendar access with GetFolder');
             
             try {
-                $response = $client->FindItem($request);
+                $folderResponse = $client->GetFolder($request);
+                
+                if ($folderResponse->ResponseMessages->GetFolderResponseMessage[0]->ResponseClass === ResponseClassType::SUCCESS) {
+                    Log::info('EWS: Calendar folder accessible');
+                } else {
+                    Log::error('EWS: Calendar folder not accessible', [
+                        'code' => $folderResponse->ResponseMessages->GetFolderResponseMessage[0]->ResponseCode ?? 'N/A',
+                        'message' => $folderResponse->ResponseMessages->GetFolderResponseMessage[0]->MessageText ?? 'N/A'
+                    ]);
+                    throw new \Exception('Cannot access calendar folder');
+                }
+            } catch (\Exception $e) {
+                Log::error('EWS: Failed to access calendar folder', ['error' => $e->getMessage()]);
+                throw new \Exception('Calendar access denied or calendar does not exist');
+            }
+
+            // Now try FindItem with minimal settings
+            $findRequest = new FindItemType();
+            $findRequest->Traversal = ItemQueryTraversalType::SHALLOW;
+            
+            // Use absolute minimum item shape
+            $findRequest->ItemShape = new ItemResponseShapeType();
+            $findRequest->ItemShape->BaseShape = DefaultShapeNamesType::ID_ONLY;
+
+            $findRequest->ParentFolderIds = new NonEmptyArrayOfBaseFolderIdsType();
+            $calFolder = new DistinguishedFolderIdType();
+            $calFolder->Id = DistinguishedFolderIdNameType::CALENDAR;
+            $findRequest->ParentFolderIds->DistinguishedFolderId[] = $calFolder;
+
+            // Set max items to avoid overload
+            $findRequest->IndexedPageItemView = new \jamesiarmes\PhpEws\Type\IndexedPageViewType();
+            $findRequest->IndexedPageItemView->MaxEntriesReturned = 100;
+            $findRequest->IndexedPageItemView->Offset = 0;
+            $findRequest->IndexedPageItemView->BasePoint = \jamesiarmes\PhpEws\Enumeration\IndexBasePointType::BEGINNING;
+            
+            Log::info('EWS: Sending FindItem request with pagination');
+            
+            try {
+                $response = $client->FindItem($findRequest);
             } catch (\SoapFault $e) {
                 Log::error('EWS: SOAP Fault', [
                     'fault_code' => $e->faultcode ?? 'N/A',
                     'fault_string' => $e->faultstring ?? 'N/A',
-                    'detail' => isset($e->detail) ? json_encode($e->detail) : 'N/A',
-                    'message' => $e->getMessage()
+                    'detail' => isset($e->detail) ? json_encode($e->detail) : 'N/A'
                 ]);
                 throw new \Exception("SOAP Error: " . ($e->faultstring ?? $e->getMessage()));
-            } catch (\Exception $e) {
-                Log::error('EWS: General Exception', [
-                    'message' => $e->getMessage(),
-                    'code' => $e->getCode(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine()
-                ]);
-                throw $e;
             }
 
             $events = [];
             
             if (!isset($response->ResponseMessages->FindItemResponseMessage[0])) {
-                Log::error('EWS: No response message found');
                 throw new \Exception('Invalid response structure from Exchange');
             }
             
@@ -134,42 +157,76 @@ class ExchangeCalendarService
             ]);
             
             if ($responseMessage->ResponseClass === ResponseClassType::SUCCESS) {
+                // Get item IDs first
+                $itemIds = [];
                 $items = $responseMessage->RootFolder->Items->CalendarItem ?? [];
                 
                 if (!is_array($items)) {
                     $items = $items ? [$items] : [];
                 }
 
-                Log::info('EWS: Found items', ['count' => count($items)]);
-
-                // Parse date filters if provided
-                $startFilter = isset($options['startDate']) ? strtotime($options['startDate']) : null;
-                $endFilter = isset($options['endDate']) ? strtotime($options['endDate']) : null;
-
+                Log::info('EWS: Found item IDs', ['count' => count($items)]);
+                
                 foreach ($items as $item) {
-                    // Apply date filtering if specified
-                    if ($startFilter || $endFilter) {
-                        $itemStart = isset($item->Start) ? strtotime($item->Start) : null;
-                        
-                        if ($startFilter && $itemStart && $itemStart < $startFilter) {
-                            continue; // Skip items before start date
-                        }
-                        
-                        if ($endFilter && $itemStart && $itemStart > $endFilter) {
-                            continue; // Skip items after end date
-                        }
+                    $itemIds[] = $item->ItemId;
+                }
+                
+                // Now get full details for each item
+                if (count($itemIds) > 0) {
+                    $getRequest = new \jamesiarmes\PhpEws\Request\GetItemType();
+                    $getRequest->ItemShape = new ItemResponseShapeType();
+                    $getRequest->ItemShape->BaseShape = DefaultShapeNamesType::DEFAULT_PROPERTIES;
+                    
+                    $getRequest->ItemIds = new NonEmptyArrayOfBaseItemIdsType();
+                    foreach ($itemIds as $itemId) {
+                        $getRequest->ItemIds->ItemId[] = $itemId;
                     }
                     
-                    $events[] = [
-                        'id' => $item->ItemId->Id,
-                        'change_key' => $item->ItemId->ChangeKey,
-                        'subject' => $item->Subject ?? '',
-                        'start' => $item->Start ?? null,
-                        'end' => $item->End ?? null,
-                        'location' => $item->Location ?? '',
-                        'organizer' => $item->Organizer->Mailbox->EmailAddress ?? '',
-                        'is_all_day' => $item->IsAllDayEvent ?? false,
-                    ];
+                    Log::info('EWS: Getting full item details');
+                    $getResponse = $client->GetItem($getRequest);
+                    
+                    $getItems = $getResponse->ResponseMessages->GetItemResponseMessage ?? [];
+                    if (!is_array($getItems)) {
+                        $getItems = [$getItems];
+                    }
+                    
+                    foreach ($getItems as $getMessage) {
+                        if ($getMessage->ResponseClass === ResponseClassType::SUCCESS) {
+                            $calItems = $getMessage->Items->CalendarItem ?? [];
+                            if (!is_array($calItems)) {
+                                $calItems = $calItems ? [$calItems] : [];
+                            }
+                            
+                            foreach ($calItems as $item) {
+                                // Apply date filtering if specified
+                                $startFilter = isset($options['startDate']) ? strtotime($options['startDate']) : null;
+                                $endFilter = isset($options['endDate']) ? strtotime($options['endDate']) : null;
+                                
+                                if ($startFilter || $endFilter) {
+                                    $itemStart = isset($item->Start) ? strtotime($item->Start) : null;
+                                    
+                                    if ($startFilter && $itemStart && $itemStart < $startFilter) {
+                                        continue;
+                                    }
+                                    
+                                    if ($endFilter && $itemStart && $itemStart > $endFilter) {
+                                        continue;
+                                    }
+                                }
+                                
+                                $events[] = [
+                                    'id' => $item->ItemId->Id,
+                                    'change_key' => $item->ItemId->ChangeKey,
+                                    'subject' => $item->Subject ?? '',
+                                    'start' => $item->Start ?? null,
+                                    'end' => $item->End ?? null,
+                                    'location' => $item->Location ?? '',
+                                    'organizer' => $item->Organizer->Mailbox->EmailAddress ?? '',
+                                    'is_all_day' => $item->IsAllDayEvent ?? false,
+                                ];
+                            }
+                        }
+                    }
                 }
 
                 Log::info('EWS: Successfully retrieved events', ['count' => count($events)]);
@@ -190,8 +247,7 @@ class ExchangeCalendarService
         } catch (\Exception $e) {
             Log::error('EWS: Failed to get calendar events', [
                 'username' => $username,
-                'error' => $e->getMessage(),
-                'trace' => substr($e->getTraceAsString(), 0, 500)
+                'error' => $e->getMessage()
             ]);
             throw $e;
         }
