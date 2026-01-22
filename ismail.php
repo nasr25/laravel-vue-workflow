@@ -41,20 +41,54 @@ class ExchangeCalendarService
      */
     private function getClient(string $username, string $password): Client
     {
-        $client = new Client(
-            $this->server,
-            $username,
-            $password,
-            $this->version
-        );
+        // Ensure server URL doesn't have https:// prefix
+        $server = $this->server;
+        $server = str_replace(['https://', 'http://'], '', $server);
 
-        // For self-signed certificates (common in private networks)
-        $client->setCurlOptions([
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false
+        Log::info('EWS: Attempting to connect', [
+            'server' => $server,
+            'username' => $username,
+            'username_length' => strlen($username),
+            'password_length' => strlen($password),
+            'version' => $this->version,
+            'has_backslash' => strpos($username, '\\') !== false,
+            'has_at_sign' => strpos($username, '@') !== false
         ]);
 
-        return $client;
+        try {
+            $client = new Client(
+                $server,
+                $username,
+                $password,
+                $this->version
+            );
+
+            // Set authentication method - try NTLM first (most common for on-premises)
+            // Other options: CURLAUTH_BASIC, CURLAUTH_DIGEST
+            $client->setCurlOptions([
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => false,
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_HTTPAUTH => CURLAUTH_NTLM | CURLAUTH_BASIC,  // Try NTLM first, fall back to Basic
+            ]);
+
+            Log::info('EWS: Client initialized successfully', [
+                'server' => $server,
+                'username' => $username
+            ]);
+
+            return $client;
+        } catch (\Exception $e) {
+            Log::error('EWS: Failed to initialize client', [
+                'server' => $server,
+                'username' => $username,
+                'error' => $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw new \Exception("Cannot connect to Exchange server: {$server}. Error: " . $e->getMessage());
+        }
     }
 
     /**
@@ -67,6 +101,11 @@ class ExchangeCalendarService
      */
     public function getCalendarEvents(string $username, string $password, array $options = []): array
     {
+        Log::info('EWS: Starting getCalendarEvents', [
+            'username' => $username,
+            'options' => $options
+        ]);
+
         try {
             $client = $this->getClient($username, $password);
 
@@ -88,7 +127,16 @@ class ExchangeCalendarService
             $request->CalendarView->StartDate = $options['startDate'] ?? date('c');
             $request->CalendarView->EndDate = $options['endDate'] ?? date('c', strtotime('+30 days'));
 
+            Log::info('EWS: Sending FindItem request', [
+                'start_date' => $request->CalendarView->StartDate,
+                'end_date' => $request->CalendarView->EndDate
+            ]);
+
             $response = $client->FindItem($request);
+
+            Log::info('EWS: Received response', [
+                'response_class' => $response->ResponseMessages->FindItemResponseMessage[0]->ResponseClass ?? 'unknown'
+            ]);
 
             $events = [];
             
@@ -98,6 +146,10 @@ class ExchangeCalendarService
                 if (!is_array($items)) {
                     $items = $items ? [$items] : [];
                 }
+
+                Log::info('EWS: Found calendar items', [
+                    'count' => count($items)
+                ]);
 
                 foreach ($items as $item) {
                     $events[] = [
@@ -114,6 +166,19 @@ class ExchangeCalendarService
                         'optional_attendees' => $this->extractAttendees($item->OptionalAttendees ?? null)
                     ];
                 }
+
+                Log::info('EWS: Successfully retrieved calendar events', [
+                    'count' => count($events)
+                ]);
+            } else {
+                $errorCode = $response->ResponseMessages->FindItemResponseMessage[0]->ResponseCode ?? 'Unknown';
+                $errorMessage = $response->ResponseMessages->FindItemResponseMessage[0]->MessageText ?? 'Unknown error';
+                
+                Log::error('EWS: FindItem request failed', [
+                    'response_class' => $response->ResponseMessages->FindItemResponseMessage[0]->ResponseClass,
+                    'error_code' => $errorCode,
+                    'error_message' => $errorMessage
+                ]);
             }
 
             return $events;
@@ -121,7 +186,11 @@ class ExchangeCalendarService
         } catch (\Exception $e) {
             Log::error('EWS: Failed to get calendar events', [
                 'user' => $username,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
             ]);
             throw new \Exception('Failed to retrieve calendar events: ' . $e->getMessage());
         }
