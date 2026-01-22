@@ -1,10 +1,7 @@
-[2026-01-22 11:37:56] local.INFO: Quick Test: Starting {"service_account":"cal-reader-srv@gadd.gov.sa","target_user":"nshalwan@gadd.gov.sa"} 
-[2026-01-22 11:37:56] local.INFO: Quick Test: Using dates {"start":"2026-01-22T00:00:00Z","end":"2026-01-29T23:59:59Z"} 
-[2026-01-22 11:37:56] local.INFO: EWS: Getting calendar events {"service_account":"cal-reader-srv@gadd.gov.sa","target_user":"nshalwan@gadd.gov.sa"} 
-[2026-01-22 11:37:56] local.INFO: EWS: Attempting to connect {"server":"mail.gadd.gov.sa/EWS/Exchange.asmx","service_account":"cal-reader-srv@gadd.gov.sa","target_user":"nshalwan@gadd.gov.sa","using_impersonation":true} 
-[2026-01-22 11:37:56] local.INFO: EWS: Setting up impersonation {"target":"nshalwan@gadd.gov.sa"} 
-[2026-01-22 11:37:56] local.INFO: EWS: Client initialized successfully  
-[2026-01-22 11:37:56] local.INFO: EWS: Testing calendar access  
-[2026-01-22 11:37:56] local.ERROR: EWS: SOAP Fault accessing folder {"fault":"The request is invalid."} 
-[2026-01-22 11:37:56] local.ERROR: EWS: Failed to get calendar events {"service_account":"cal-reader-srv@gadd.gov.sa","target_user":"nshalwan@gadd.gov.sa","error":"Calendar access denied: The request is invalid."} 
-[2026-01-22 11:37:56] local.ERROR: Quick Test: Failed {"service_account":"cal-reader-srv@gadd.gov.sa","target_user":"nshalwan@gadd.gov.sa","error":"Calendar access denied: The request is invalid."} 
+[2026-01-22 11:42:03] local.INFO: Quick Test: Starting {"service_account":"cal-reader-srv@gadd.gov.sa","target_user":"nshalwan@gadd.gov.sa"} 
+[2026-01-22 11:42:03] local.INFO: Quick Test: Using dates {"start":"2026-01-22T00:00:00Z","end":"2026-01-29T23:59:59Z"} 
+[2026-01-22 11:42:03] local.INFO: EWS: Getting calendar events (Direct SOAP) {"service_account":"cal-reader-srv@gadd.gov.sa","target_user":"nshalwan@gadd.gov.sa"} 
+[2026-01-22 11:42:03] local.INFO: EWS: Sending SOAP request  
+[2026-01-22 11:42:03] local.ERROR: EWS: HTTP error {"status":500} 
+[2026-01-22 11:42:03] local.ERROR: EWS: Failed to get calendar events {"service_account":"cal-reader-srv@gadd.gov.sa","target_user":"nshalwan@gadd.gov.sa","error":"HTTP error: 500"} 
+[2026-01-22 11:42:03] local.ERROR: Quick Test: Failed {"service_account":"cal-reader-srv@gadd.gov.sa","target_user":"nshalwan@gadd.gov.sa","error":"HTTP error: 500"} 
