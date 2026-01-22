@@ -17,21 +17,76 @@ class CalendarController extends Controller
     }
 
     /**
-     * Get calendar events for a user
-     * POST /api/calendar/events
+     * Quick test endpoint - GET /api/calendar/test
+     */
+    public function quickTest(Request $request): JsonResponse
+    {
+        // Get credentials from query params for easy testing
+        $username = $request->input('username');
+        $password = $request->input('password');
+
+        if (!$username || !$password) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please provide username and password',
+                'example' => 'GET /api/calendar/test?username=user@domain.com&password=yourpass'
+            ], 400);
+        }
+
+        Log::info('Quick Test: Starting', ['username' => $username]);
+
+        try {
+            // Try to get today's events
+            $events = $this->calendarService->getCalendarEvents(
+                $username,
+                $password,
+                [
+                    'startDate' => date('c', strtotime('today')),
+                    'endDate' => date('c', strtotime('+7 days'))
+                ]
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => '✓ Connection successful!',
+                'data' => [
+                    'server' => config('services.exchange.server'),
+                    'username' => $username,
+                    'events_count' => count($events),
+                    'events' => array_slice($events, 0, 3) // First 3 events
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Quick Test: Failed', [
+                'username' => $username,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => '✗ Connection failed',
+                'error' => $e->getMessage(),
+                'troubleshooting' => [
+                    'Check your username format (use email: user@domain.com)',
+                    'Verify password is correct',
+                    'Check server URL in .env: ' . config('services.exchange.server'),
+                    'Check logs: storage/logs/laravel.log'
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * Get calendar events - POST /api/calendar/events
      */
     public function getEvents(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'username' => 'required|string',
+            'username' => 'required|email',
             'password' => 'required|string',
             'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date',
-        ]);
-
-        Log::info('CalendarController: getEvents called', [
-            'username' => $validated['username'],
-            'has_password' => !empty($validated['password'])
+            'end_date' => 'nullable|date|after_or_equal:start_date',
         ]);
 
         try {
@@ -45,22 +100,12 @@ class CalendarController extends Controller
                 $options['endDate'] = date('c', strtotime($validated['end_date']));
             }
 
-            Log::info('CalendarController: Calling calendarService', [
-                'username' => $validated['username'],
-                'options' => $options
-            ]);
-
             $events = $this->calendarService->getCalendarEvents(
                 $validated['username'],
                 $validated['password'],
                 $options
             );
 
-            Log::info('CalendarController: Successfully retrieved events', [
-                'username' => $validated['username'],
-                'events_count' => count($events)
-            ]);
-
             return response()->json([
                 'success' => true,
                 'data' => $events,
@@ -68,12 +113,6 @@ class CalendarController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('CalendarController: Failed to get events', [
-                'username' => $validated['username'],
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()
@@ -82,100 +121,17 @@ class CalendarController extends Controller
     }
 
     /**
-     * Get all calendar events for a user (with pagination)
-     * POST /api/calendar/all-events
-     */
-    public function getAllEvents(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'username' => 'required|string',
-            'password' => 'required|string',
-        ]);
-
-        try {
-            $events = $this->calendarService->getAllCalendarEvents(
-                $validated['username'],
-                $validated['password']
-            );
-
-            return response()->json([
-                'success' => true,
-                'data' => $events,
-                'count' => count($events)
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('CalendarController: Failed to get all events', [
-                'username' => $validated['username'],
-                'error' => $e->getMessage()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Get a specific event
-     * POST /api/calendar/event
-     */
-    public function getEvent(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'username' => 'required|string',
-            'password' => 'required|string',
-            'item_id' => 'required|string',
-            'change_key' => 'required|string',
-        ]);
-
-        try {
-            $event = $this->calendarService->getEvent(
-                $validated['username'],
-                $validated['password'],
-                $validated['item_id'],
-                $validated['change_key']
-            );
-
-            if (!$event) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Event not found'
-                ], 404);
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => $event
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('CalendarController: Failed to get event', [
-                'username' => $validated['username'],
-                'error' => $e->getMessage()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Create a new event
-     * POST /api/calendar/create-event
+     * Create event - POST /api/calendar/create
      */
     public function createEvent(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'username' => 'required|string',
+            'username' => 'required|email',
             'password' => 'required|string',
-            'subject' => 'required|string',
+            'subject' => 'required|string|max:255',
             'start' => 'required|date',
             'end' => 'required|date|after:start',
-            'location' => 'nullable|string',
+            'location' => 'nullable|string|max:255',
             'body' => 'nullable|string',
             'is_all_day' => 'nullable|boolean',
         ]);
@@ -212,11 +168,6 @@ class CalendarController extends Controller
             ], 201);
 
         } catch (\Exception $e) {
-            Log::error('CalendarController: Failed to create event', [
-                'username' => $validated['username'],
-                'error' => $e->getMessage()
-            ]);
-
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()
@@ -225,21 +176,19 @@ class CalendarController extends Controller
     }
 
     /**
-     * Update an event
-     * POST /api/calendar/update-event
+     * Update event - POST /api/calendar/update
      */
     public function updateEvent(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'username' => 'required|string',
+            'username' => 'required|email',
             'password' => 'required|string',
             'item_id' => 'required|string',
             'change_key' => 'required|string',
-            'subject' => 'nullable|string',
+            'subject' => 'nullable|string|max:255',
             'start' => 'nullable|date',
             'end' => 'nullable|date',
-            'location' => 'nullable|string',
-            'body' => 'nullable|string',
+            'location' => 'nullable|string|max:255',
         ]);
 
         try {
@@ -261,10 +210,6 @@ class CalendarController extends Controller
                 $eventData['location'] = $validated['location'];
             }
 
-            if (isset($validated['body'])) {
-                $eventData['body'] = $validated['body'];
-            }
-
             $event = $this->calendarService->updateEvent(
                 $validated['username'],
                 $validated['password'],
@@ -280,11 +225,6 @@ class CalendarController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('CalendarController: Failed to update event', [
-                'username' => $validated['username'],
-                'error' => $e->getMessage()
-            ]);
-
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()
@@ -293,13 +233,12 @@ class CalendarController extends Controller
     }
 
     /**
-     * Delete an event
-     * POST /api/calendar/delete-event
+     * Delete event - POST /api/calendar/delete
      */
     public function deleteEvent(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'username' => 'required|string',
+            'username' => 'required|email',
             'password' => 'required|string',
             'item_id' => 'required|string',
             'change_key' => 'required|string',
@@ -319,11 +258,6 @@ class CalendarController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('CalendarController: Failed to delete event', [
-                'username' => $validated['username'],
-                'error' => $e->getMessage()
-            ]);
-
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()
@@ -334,13 +268,12 @@ class CalendarController extends Controller
 use App\Http\Controllers\CalendarController;
 
 Route::prefix('calendar')->group(function () {
-    // Get events
-    Route::post('events', [CalendarController::class, 'getEvents']);
-    Route::post('all-events', [CalendarController::class, 'getAllEvents']);
-    Route::post('event', [CalendarController::class, 'getEvent']);
+    // Quick test endpoint (use GET for easy browser testing)
+    Route::get('test', [CalendarController::class, 'quickTest']);
     
-    // Create, update, delete
-    Route::post('create-event', [CalendarController::class, 'createEvent']);
-    Route::post('update-event', [CalendarController::class, 'updateEvent']);
-    Route::post('delete-event', [CalendarController::class, 'deleteEvent']);
+    // Main endpoints (use POST for security)
+    Route::post('events', [CalendarController::class, 'getEvents']);
+    Route::post('create', [CalendarController::class, 'createEvent']);
+    Route::post('update', [CalendarController::class, 'updateEvent']);
+    Route::post('delete', [CalendarController::class, 'deleteEvent']);
 });
