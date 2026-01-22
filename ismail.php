@@ -95,9 +95,24 @@ class ExchangeCalendarService
             $folder->Id = DistinguishedFolderIdNameType::CALENDAR;
             $request->ParentFolderIds->DistinguishedFolderId[] = $folder;
 
+            // Calendar view with proper ISO 8601 format
             $request->CalendarView = new CalendarViewType();
-            $request->CalendarView->StartDate = $options['startDate'] ?? date('c');
-            $request->CalendarView->EndDate = $options['endDate'] ?? date('c', strtotime('+30 days'));
+            
+            // Ensure dates are in proper format
+            $startDate = $options['startDate'] ?? date('Y-m-d\TH:i:s\Z');
+            $endDate = $options['endDate'] ?? date('Y-m-d\TH:i:s\Z', strtotime('+30 days'));
+            
+            // Remove timezone if present and add Z (UTC)
+            $startDate = preg_replace('/([+-]\d{2}:\d{2}|Z)$/', '', $startDate) . 'Z';
+            $endDate = preg_replace('/([+-]\d{2}:\d{2}|Z)$/', '', $endDate) . 'Z';
+            
+            $request->CalendarView->StartDate = $startDate;
+            $request->CalendarView->EndDate = $endDate;
+            
+            Log::info('EWS: Calendar view dates', [
+                'start' => $startDate,
+                'end' => $endDate
+            ]);
 
             Log::info('EWS: Sending FindItem request');
             $response = $client->FindItem($request);
@@ -171,8 +186,17 @@ class ExchangeCalendarService
 
             $event = new CalendarItemType();
             $event->Subject = $eventData['subject'];
-            $event->Start = $eventData['start'];
-            $event->End = $eventData['end'];
+            
+            // Ensure dates are in proper format
+            $startDate = $eventData['start'];
+            $endDate = $eventData['end'];
+            
+            // Remove timezone if present and add Z (UTC)
+            $startDate = preg_replace('/([+-]\d{2}:\d{2}|Z)$/', '', $startDate) . 'Z';
+            $endDate = preg_replace('/([+-]\d{2}:\d{2}|Z)$/', '', $endDate) . 'Z';
+            
+            $event->Start = $startDate;
+            $event->End = $endDate;
             
             if (isset($eventData['location'])) {
                 $event->Location = $eventData['location'];
@@ -255,11 +279,15 @@ class ExchangeCalendarService
                     case 'start':
                         $field->FieldURI = new \jamesiarmes\PhpEws\Type\PathToUnindexedFieldType();
                         $field->FieldURI->FieldURI = 'calendar:Start';
+                        // Fix date format
+                        $value = preg_replace('/([+-]\d{2}:\d{2}|Z)$/', '', $value) . 'Z';
                         $field->CalendarItem->Start = $value;
                         break;
                     case 'end':
                         $field->FieldURI = new \jamesiarmes\PhpEws\Type\PathToUnindexedFieldType();
                         $field->FieldURI->FieldURI = 'calendar:End';
+                        // Fix date format
+                        $value = preg_replace('/([+-]\d{2}:\d{2}|Z)$/', '', $value) . 'Z';
                         $field->CalendarItem->End = $value;
                         break;
                 }

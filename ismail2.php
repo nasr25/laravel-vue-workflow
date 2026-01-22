@@ -36,13 +36,22 @@ class CalendarController extends Controller
         Log::info('Quick Test: Starting', ['username' => $username]);
 
         try {
-            // Try to get today's events
+            // Use proper date format for Exchange
+            $startDate = date('Y-m-d\TH:i:s\Z', strtotime('today'));
+            $endDate = date('Y-m-d\TH:i:s\Z', strtotime('+7 days'));
+            
+            Log::info('Quick Test: Using dates', [
+                'start' => $startDate,
+                'end' => $endDate
+            ]);
+            
+            // Try to get events
             $events = $this->calendarService->getCalendarEvents(
                 $username,
                 $password,
                 [
-                    'startDate' => date('c', strtotime('today')),
-                    'endDate' => date('c', strtotime('+7 days'))
+                    'startDate' => $startDate,
+                    'endDate' => $endDate
                 ]
             );
 
@@ -93,11 +102,11 @@ class CalendarController extends Controller
             $options = [];
             
             if (isset($validated['start_date'])) {
-                $options['startDate'] = date('c', strtotime($validated['start_date']));
+                $options['startDate'] = date('Y-m-d\TH:i:s\Z', strtotime($validated['start_date']));
             }
             
             if (isset($validated['end_date'])) {
-                $options['endDate'] = date('c', strtotime($validated['end_date']));
+                $options['endDate'] = date('Y-m-d\TH:i:s\Z', strtotime($validated['end_date']));
             }
 
             $events = $this->calendarService->getCalendarEvents(
@@ -139,8 +148,8 @@ class CalendarController extends Controller
         try {
             $eventData = [
                 'subject' => $validated['subject'],
-                'start' => date('c', strtotime($validated['start'])),
-                'end' => date('c', strtotime($validated['end'])),
+                'start' => date('Y-m-d\TH:i:s\Z', strtotime($validated['start'])),
+                'end' => date('Y-m-d\TH:i:s\Z', strtotime($validated['end'])),
             ];
 
             if (isset($validated['location'])) {
@@ -199,11 +208,11 @@ class CalendarController extends Controller
             }
 
             if (isset($validated['start'])) {
-                $eventData['start'] = date('c', strtotime($validated['start']));
+                $eventData['start'] = date('Y-m-d\TH:i:s\Z', strtotime($validated['start']));
             }
 
             if (isset($validated['end'])) {
-                $eventData['end'] = date('c', strtotime($validated['end']));
+                $eventData['end'] = date('Y-m-d\TH:i:s\Z', strtotime($validated['end']));
             }
 
             if (isset($validated['location'])) {
@@ -265,15 +274,3 @@ class CalendarController extends Controller
         }
     }
 }
-use App\Http\Controllers\CalendarController;
-
-Route::prefix('calendar')->group(function () {
-    // Quick test endpoint (use GET for easy browser testing)
-    Route::get('test', [CalendarController::class, 'quickTest']);
-    
-    // Main endpoints (use POST for security)
-    Route::post('events', [CalendarController::class, 'getEvents']);
-    Route::post('create', [CalendarController::class, 'createEvent']);
-    Route::post('update', [CalendarController::class, 'updateEvent']);
-    Route::post('delete', [CalendarController::class, 'deleteEvent']);
-});
