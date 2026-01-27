@@ -245,8 +245,15 @@ class DepartmentWorkflowController extends Controller
         $originalStatus = $userRequest->status;
 
         // Determine if this is a return (employee was previously assigned) or initial assignment
-        $isReturn = $userRequest->last_assigned_user_id && $userRequest->last_assigned_user_id == $employee->id;
+        // Check transition history to see if this employee was previously assigned
+        $previousAssignment = \App\Models\RequestTransition::where('request_id', $userRequest->id)
+            ->where('to_user_id', $employee->id)
+            ->where('action', 'assign')
+            ->exists();
+
+        $isReturn = $previousAssignment;
         // Keep status as in_review so employee must explicitly accept/start before going to in_progress
+        // For returns, use 'missing_requirement' to indicate this needs revision
         $newStatus = $isReturn ? 'missing_requirement' : 'in_review';
 
         $userRequest->update([
@@ -257,9 +264,20 @@ class DepartmentWorkflowController extends Controller
         ]);
 
         // Create transition record
-        $transitionComment = $isReturn
-            ? ($validated['comments'] ?? "Returned to {$employee->name} for missing requirements")
-            : ($validated['comments'] ?? "Assigned to {$employee->name}");
+        // Generate bilingual comments for assignment
+        $userComment = $validated['comments'] ?? '';
+        if ($userComment) {
+            $commentsAr = $userComment;
+            $commentsEn = $userComment;
+        } else {
+            if ($isReturn) {
+                $commentsAr = "تمت الإعادة إلى {$employee->name} للمتطلبات المفقودة";
+                $commentsEn = "Returned to {$employee->name} for missing requirements";
+            } else {
+                $commentsAr = "تم التعيين إلى {$employee->name}";
+                $commentsEn = "Assigned to {$employee->name}";
+            }
+        }
 
         \App\Models\RequestTransition::create([
             'request_id' => $userRequest->id,
@@ -269,7 +287,8 @@ class DepartmentWorkflowController extends Controller
             'action' => 'assign',
             'from_status' => $originalStatus,
             'to_status' => $newStatus,
-            'comments' => $transitionComment,
+            'comments_ar' => $commentsAr,
+            'comments_en' => $commentsEn,
         ]);
 
         // Send notifications - notify the assigned employee and all stakeholders
@@ -337,7 +356,7 @@ class DepartmentWorkflowController extends Controller
             'sla_reminder_sent_at' => null,
         ]);
 
-        // Create transition record
+        // Create transition record - store user's comment in both language fields
         \App\Models\RequestTransition::create([
             'request_id' => $userRequest->id,
             'from_department_id' => $previousDepartment,
@@ -346,7 +365,8 @@ class DepartmentWorkflowController extends Controller
             'action' => 'complete',
             'from_status' => $previousStatus,
             'to_status' => 'in_review',
-            'comments' => $validated['comments'],
+            'comments_ar' => $validated['comments'],
+            'comments_en' => $validated['comments'],
         ]);
 
         // Send notifications to department managers and stakeholders
@@ -395,7 +415,7 @@ class DepartmentWorkflowController extends Controller
             'sla_reminder_sent_at' => null,
         ]);
 
-        // Create transition record
+        // Create transition record - store user's rejection comment in both language fields
         \App\Models\RequestTransition::create([
             'request_id' => $userRequest->id,
             'from_department_id' => $previousDepartment,
@@ -404,7 +424,8 @@ class DepartmentWorkflowController extends Controller
             'action' => 'employee_reject',
             'from_status' => $previousStatus,
             'to_status' => 'in_review',
-            'comments' => $validated['comments'],
+            'comments_ar' => $validated['comments'],
+            'comments_en' => $validated['comments'],
         ]);
 
         // Send notifications
@@ -462,7 +483,11 @@ class DepartmentWorkflowController extends Controller
             'expected_execution_date' => $validated['expected_execution_date'],
         ]);
 
-        // Create transition record
+        // Create transition record with auto-generated or user-provided bilingual comments
+        $userComment = $validated['comments'] ?? '';
+        $commentsAr = $userComment ? $userComment : 'قبل الموظف الطلب وبدأ العمل عليه';
+        $commentsEn = $userComment ? $userComment : 'Employee accepted the request and started working on it';
+
         \App\Models\RequestTransition::create([
             'request_id' => $userRequest->id,
             'from_department_id' => $userRequest->current_department_id,
@@ -472,7 +497,8 @@ class DepartmentWorkflowController extends Controller
             'action' => 'employee_accept',
             'from_status' => $previousStatus,
             'to_status' => 'in_progress',
-            'comments' => $validated['comments'] ?? 'Employee accepted the request and started working on it',
+            'comments_ar' => $commentsAr,
+            'comments_en' => $commentsEn,
         ]);
 
         // Send notifications
@@ -527,7 +553,10 @@ class DepartmentWorkflowController extends Controller
             'progress_percentage' => $validated['progress_percentage'],
         ]);
 
-        // Create transition record for progress update
+        // Create transition record for progress update with bilingual comments
+        $progressCommentAr = "تم تحديث التقدم من {$previousProgress}% إلى {$validated['progress_percentage']}%: {$validated['comments']}";
+        $progressCommentEn = "Progress updated from {$previousProgress}% to {$validated['progress_percentage']}%: {$validated['comments']}";
+
         \App\Models\RequestTransition::create([
             'request_id' => $userRequest->id,
             'from_department_id' => $userRequest->current_department_id,
@@ -537,7 +566,8 @@ class DepartmentWorkflowController extends Controller
             'action' => 'progress_update',
             'from_status' => 'in_progress',
             'to_status' => 'in_progress',
-            'comments' => "Progress updated from {$previousProgress}% to {$validated['progress_percentage']}%: {$validated['comments']}",
+            'comments_ar' => $progressCommentAr,
+            'comments_en' => $progressCommentEn,
         ]);
 
         // Send notifications
@@ -564,6 +594,8 @@ class DepartmentWorkflowController extends Controller
 
         $validated = $request->validate([
             'comments' => 'required|string',
+            'attachments' => 'nullable|array|max:5',
+            'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png|max:10240', // 10MB
         ]);
 
         // Get departments where user is employee
@@ -587,7 +619,7 @@ class DepartmentWorkflowController extends Controller
             'sla_reminder_sent_at' => null,
         ]);
 
-        // Create transition record
+        // Create transition record - store user's completion comment in both language fields
         \App\Models\RequestTransition::create([
             'request_id' => $userRequest->id,
             'from_department_id' => $previousDepartment,
@@ -596,8 +628,25 @@ class DepartmentWorkflowController extends Controller
             'action' => 'employee_complete',
             'from_status' => $previousStatus,
             'to_status' => 'in_review',
-            'comments' => $validated['comments'],
+            'comments_ar' => $validated['comments'],
+            'comments_en' => $validated['comments'],
         ]);
+
+        // Handle file attachments during employee completion
+        if ($request->hasFile('attachments')) {
+            foreach ($request->file('attachments') as $file) {
+                $path = $file->store('attachments', 'public');
+
+                \App\Models\RequestAttachment::create([
+                    'request_id' => $userRequest->id,
+                    'uploaded_by' => $user->id,
+                    'file_name' => $file->getClientOriginalName(),
+                    'file_path' => $path,
+                    'file_type' => $file->getMimeType(),
+                    'file_size' => $file->getSize(),
+                ]);
+            }
+        }
 
         // Send notifications
         $this->notificationService->notifyRequestStakeholders(
@@ -671,7 +720,7 @@ class DepartmentWorkflowController extends Controller
             'sla_reminder_sent_at' => null,
         ]);
 
-        // Create transition record
+        // Create transition record - store user's comment in both language fields
         \App\Models\RequestTransition::create([
             'request_id' => $userRequest->id,
             'from_department_id' => $previousDepartment,
@@ -680,7 +729,8 @@ class DepartmentWorkflowController extends Controller
             'action' => 'complete',
             'from_status' => $previousStatus,
             'to_status' => 'in_review',
-            'comments' => $validated['comments'],
+            'comments_ar' => $validated['comments'],
+            'comments_en' => $validated['comments'],
         ]);
 
         // Send notifications to all stakeholders
@@ -828,7 +878,11 @@ class DepartmentWorkflowController extends Controller
             'expected_execution_date' => $validated['expected_execution_date'],
         ]);
 
-        // Create transition record
+        // Create transition record with auto-generated or user-provided bilingual comments
+        $userComment = $validated['comments'] ?? '';
+        $commentsAr = $userComment ? $userComment : 'تم قبول الفكرة للتنفيذ المستقبلي';
+        $commentsEn = $userComment ? $userComment : 'Idea accepted for future implementation';
+
         \App\Models\RequestTransition::create([
             'request_id' => $userRequest->id,
             'from_department_id' => $previousDepartment,
@@ -837,7 +891,8 @@ class DepartmentWorkflowController extends Controller
             'action' => 'accept_later',
             'from_status' => $previousStatus,
             'to_status' => 'pending',
-            'comments' => $validated['comments'] ?? 'Idea accepted for future implementation',
+            'comments_ar' => $commentsAr,
+            'comments_en' => $commentsEn,
         ]);
 
         // Send notifications to all stakeholders
@@ -902,7 +957,11 @@ class DepartmentWorkflowController extends Controller
             'sla_reminder_sent_at' => null,
         ]);
 
-        // Create transition record
+        // Create transition record with auto-generated or user-provided bilingual comments
+        $userComment = $validated['comments'] ?? '';
+        $commentsAr = $userComment ? $userComment : 'تم تنشيط الفكرة للتنفيذ';
+        $commentsEn = $userComment ? $userComment : 'Idea activated for implementation';
+
         \App\Models\RequestTransition::create([
             'request_id' => $userRequest->id,
             'from_department_id' => $userRequest->current_department_id,
@@ -911,7 +970,8 @@ class DepartmentWorkflowController extends Controller
             'action' => 'activate',
             'from_status' => $previousStatus,
             'to_status' => 'in_review',
-            'comments' => $validated['comments'] ?? 'Idea activated for implementation',
+            'comments_ar' => $commentsAr,
+            'comments_en' => $commentsEn,
         ]);
 
         // Send notifications to all stakeholders
@@ -976,7 +1036,7 @@ class DepartmentWorkflowController extends Controller
             'current_user_id' => null,
         ]);
 
-        // Create transition record
+        // Create transition record - store user's rejection comment in both language fields
         \App\Models\RequestTransition::create([
             'request_id' => $userRequest->id,
             'from_department_id' => $previousDepartment,
@@ -985,7 +1045,8 @@ class DepartmentWorkflowController extends Controller
             'action' => 'reject_idea',
             'from_status' => $previousStatus,
             'to_status' => 'rejected',
-            'comments' => $validated['comments'],
+            'comments_ar' => $validated['comments'],
+            'comments_en' => $validated['comments'],
         ]);
 
         // Send notifications to all stakeholders

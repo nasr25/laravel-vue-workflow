@@ -19,7 +19,8 @@ class RequestTransition extends Model
         'action',
         'from_status',
         'to_status',
-        'comments',
+        'comments_ar',
+        'comments_en',
     ];
 
     public function request()

@@ -36,7 +36,7 @@ class RequestController extends Controller
         $search = $request->input('search');
 
         $query = Request::where('user_id', $user->id)
-            ->with(['ideaType', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'employees']);
+            ->with(['ideaTypes', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'employees']);
 
         // Filter by status if provided
         if ($status && $status !== 'all') {
@@ -53,6 +53,18 @@ class RequestController extends Controller
 
         $requests = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
+        // Get status counts for the filter tabs
+        $statusCounts = [
+            'all' => Request::where('user_id', $user->id)->count(),
+            'draft' => Request::where('user_id', $user->id)->where('status', 'draft')->count(),
+            'pending' => Request::where('user_id', $user->id)->where('status', 'pending')->count(),
+            'in_review' => Request::where('user_id', $user->id)->where('status', 'in_review')->count(),
+            'need_more_details' => Request::where('user_id', $user->id)->where('status', 'need_more_details')->count(),
+            'approved' => Request::where('user_id', $user->id)->where('status', 'approved')->count(),
+            'rejected' => Request::where('user_id', $user->id)->where('status', 'rejected')->count(),
+            'completed' => Request::where('user_id', $user->id)->where('status', 'completed')->count(),
+        ];
+
         return response()->json([
             'requests' => $requests->items(),
             'pagination' => [
@@ -62,7 +74,8 @@ class RequestController extends Controller
                 'total' => $requests->total(),
                 'from' => $requests->firstItem(),
                 'to' => $requests->lastItem(),
-            ]
+            ],
+            'status_counts' => $statusCounts,
         ]);
     }
 
@@ -71,7 +84,8 @@ class RequestController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:200',
             'description' => 'required|string',
-            'idea_type' => 'nullable|string', // Can be idea type ID or old format (now optional)
+            'idea_types' => 'nullable|array', // Array of idea type IDs
+            'idea_types.*' => 'integer|exists:idea_types,id', // Each idea type ID must exist
             'department' => 'required|string', // Can be department ID or "unknown"
             'benefits' => 'nullable|string',
             'status' => 'nullable|string|in:draft,pending',
@@ -115,7 +129,6 @@ class RequestController extends Controller
         $userRequest = Request::create([
             'title' => $validated['title'],
             'description' => $validated['description'],
-            'idea_type_id' => !empty($validated['idea_type']) ? (int) $validated['idea_type'] : null, // Store idea type ID (optional)
             'department_id' => $selectedDepartmentId, // Store selected department
             'benefits' => $validated['benefits'] ?? null,
             'user_id' => $request->user()->id,
@@ -125,10 +138,16 @@ class RequestController extends Controller
             'submitted_at' => $status === 'pending' ? now() : null,
         ]);
 
+        // Sync idea types (many-to-many relationship)
+        if (isset($validated['idea_types']) && is_array($validated['idea_types']) && !empty($validated['idea_types'])) {
+            $userRequest->ideaTypes()->sync($validated['idea_types']);
+        }
+
         // Log what was actually saved
         \Log::info('Request created with idea_type', [
             'request_id' => $userRequest->id,
-            'saved_idea_type' => $userRequest->idea_type
+            'saved_idea_type' => $userRequest->idea_type,
+            'idea_types_count' => isset($validated['idea_types']) ? count($validated['idea_types']) : 0
         ]);
 
         // Handle employees if shared idea
@@ -195,7 +214,7 @@ class RequestController extends Controller
 
         return response()->json([
             'message' => $status === 'pending' ? 'Idea submitted successfully' : 'Draft saved successfully',
-            'request' => $userRequest->load(['ideaType', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'employees'])
+            'request' => $userRequest->load(['ideaTypes', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'employees'])
         ], 201);
     }
 
@@ -222,7 +241,7 @@ class RequestController extends Controller
                     // OR request is assigned to user
                     ->orWhere('current_user_id', $user->id);
             })
-            ->with(['user', 'ideaType', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'employees', 'transitions.actionedBy', 'transitions.toDepartment'])
+            ->with(['user', 'ideaTypes', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'employees', 'transitions.actionedBy', 'transitions.toDepartment'])
             ->firstOrFail();
 
         return response()->json([
@@ -240,7 +259,8 @@ class RequestController extends Controller
         $validated = $request->validate([
             'title' => 'sometimes|required|string|max:200',
             'description' => 'sometimes|required|string',
-            'idea_type' => 'nullable|string', // Can be idea type ID
+            'idea_types' => 'nullable|array', // Array of idea type IDs
+            'idea_types.*' => 'integer|exists:idea_types,id', // Each idea type ID must exist
             'department' => 'nullable|string',
             'benefits' => 'nullable|string',
             'additional_details' => 'sometimes|nullable|string',
@@ -258,11 +278,10 @@ class RequestController extends Controller
             'idea_ownership_type.in' => __('validation.idea_ownership_type_invalid'),
         ]);
 
-        // Handle idea_type conversion to idea_type_id
+        // Prepare update data (excluding idea_types which will be synced separately)
         $updateData = $validated;
-        if (isset($validated['idea_type'])) {
-            $updateData['idea_type_id'] = !empty($validated['idea_type']) ? (int) $validated['idea_type'] : null;
-            unset($updateData['idea_type']);
+        if (isset($validated['idea_types'])) {
+            unset($updateData['idea_types']);
         }
 
         // Handle department conversion to department_id
@@ -359,6 +378,16 @@ class RequestController extends Controller
             }
         } else {
             $userRequest->update($updateData);
+        }
+
+        // Sync idea types if provided
+        if (isset($validated['idea_types'])) {
+            if (is_array($validated['idea_types']) && !empty($validated['idea_types'])) {
+                $userRequest->ideaTypes()->sync($validated['idea_types']);
+            } else {
+                // If empty array provided, detach all
+                $userRequest->ideaTypes()->detach();
+            }
         }
 
         // Handle employees update if provided
@@ -603,22 +632,19 @@ class RequestController extends Controller
 
     /**
      * Get all approved ideas for the Ideas Bank
-     * Shows ideas that have been approved by path manager and assigned to an employee
+     * Shows only ideas that are in progress or completed (excludes under review)
      * Visible to all authenticated users
      */
     public function getApprovedIdeas(HttpRequest $request)
     {
         $search = $request->input('search', '');
-        $filter = $request->input('filter', 'all'); // all, under_review, in_progress, completed
+        $filter = $request->input('filter', 'all'); // all, in_progress, completed
         $page = $request->input('page', 1);
         $perPage = $request->input('per_page', 12);
 
-        // Show ideas once path manager approves (assigns workflow path) until completion
-        $query = Request::where(function($q) {
-                $q->whereNotNull('workflow_path_id');
-            })
-            ->orWhere('status', 'completed')
-            ->with(['user:id,username', 'ideaType:id,name,name_ar,color', 'department:id,name', 'workflowPath:id,name', 'currentAssignee:id,username']);
+        // Show only ideas that are in_progress or completed (exclude under review)
+        $query = Request::whereIn('status', ['in_progress', 'completed'])
+            ->with(['user:id,username', 'ideaTypes:id,name,name_ar,color', 'department:id,name', 'workflowPath:id,name', 'currentAssignee:id,username']);
 
         // Apply search filter
         if (!empty($search)) {
@@ -629,30 +655,20 @@ class RequestController extends Controller
         }
 
         // Apply status filter
-        if ($filter === 'under_review') {
-            // Path assigned but not yet in progress or completed
-            $query->whereNotNull('workflow_path_id')
-                  ->whereNotIn('status', ['in_progress', 'completed']);
-        } elseif ($filter === 'in_progress') {
+        if ($filter === 'in_progress') {
             // Actively being worked on
-            $query->whereNotNull('workflow_path_id')
-                  ->where('status', 'in_progress');
+            $query->where('status', 'in_progress');
         } elseif ($filter === 'completed') {
             $query->where('status', 'completed');
         }
+        // If filter is 'all', show both in_progress and completed (already filtered above)
 
         // Get total count for statistics
-        // Under Review: path assigned but not in progress or completed
-        $totalUnderReview = Request::whereNotNull('workflow_path_id')
-            ->whereNotIn('status', ['in_progress', 'completed'])
-            ->count();
         // In Progress: actively being worked on
-        $totalInProgress = Request::whereNotNull('workflow_path_id')
-            ->where('status', 'in_progress')
-            ->count();
+        $totalInProgress = Request::where('status', 'in_progress')->count();
         // Completed: all completed ideas
         $totalCompleted = Request::where('status', 'completed')->count();
-        $totalIdeas = $totalUnderReview + $totalInProgress + $totalCompleted;
+        $totalIdeas = $totalInProgress + $totalCompleted;
 
         // Get paginated results
         $ideas = $query->orderBy('updated_at', 'desc')
@@ -668,7 +684,6 @@ class RequestController extends Controller
             ],
             'stats' => [
                 'total' => $totalIdeas,
-                'under_review' => $totalUnderReview,
                 'in_progress' => $totalInProgress,
                 'completed' => $totalCompleted,
             ]

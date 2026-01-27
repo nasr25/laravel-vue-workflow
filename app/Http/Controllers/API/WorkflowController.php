@@ -146,7 +146,7 @@ class WorkflowController extends Controller
             'workflowPath.steps.department',
             'attachments',
             'employees',
-            'ideaType',
+            'ideaTypes',
             'department',
             'transitions.actionedBy',
             'transitions.toDepartment',
@@ -285,7 +285,11 @@ class WorkflowController extends Controller
             'sla_reminder_sent_at' => null,
         ]);
 
-        // Create transition record
+        // Create transition record with auto-generated bilingual comments
+        $userComment = $validated['comments'] ?? '';
+        $commentsAr = $userComment ? $userComment : "تم التعيين لمسار العمل: {$workflowPath->name}";
+        $commentsEn = $userComment ? $userComment : "Assigned to workflow path: {$workflowPath->name}";
+
         \App\Models\RequestTransition::create([
             'request_id' => $userRequest->id,
             'to_department_id' => $firstStep->department_id,
@@ -293,7 +297,8 @@ class WorkflowController extends Controller
             'action' => 'assign_path',
             'from_status' => 'pending',
             'to_status' => 'in_review',
-            'comments' => $validated['comments'] ?? "Assigned to workflow path: {$workflowPath->name}",
+            'comments_ar' => $commentsAr,
+            'comments_en' => $commentsEn,
         ]);
 
         // Send notifications to all stakeholders
@@ -352,6 +357,7 @@ class WorkflowController extends Controller
 
         $previousStatus = $userRequest->status;
 
+        // Store rejection reason in the request's rejection_reason field
         $userRequest->update([
             'status' => 'rejected',
             'rejection_reason' => $validated['rejection_reason'],
@@ -360,7 +366,7 @@ class WorkflowController extends Controller
             'current_user_id' => null,
         ]);
 
-        // Create transition record
+        // Create transition record - store user's rejection reason in both language fields
         \App\Models\RequestTransition::create([
             'request_id' => $userRequest->id,
             'to_department_id' => $deptA->id,
@@ -368,7 +374,8 @@ class WorkflowController extends Controller
             'action' => 'reject',
             'from_status' => $previousStatus,
             'to_status' => 'rejected',
-            'comments' => $validated['rejection_reason'],
+            'comments_ar' => $validated['rejection_reason'],
+            'comments_en' => $validated['rejection_reason'],
         ]);
 
         // Send notifications to all stakeholders
@@ -432,7 +439,7 @@ class WorkflowController extends Controller
             'current_department_id' => null,
         ]);
 
-        // Create transition record
+        // Create transition record - store user's comments in both language fields
         \App\Models\RequestTransition::create([
             'request_id' => $userRequest->id,
             'to_department_id' => null,
@@ -440,7 +447,8 @@ class WorkflowController extends Controller
             'action' => 'request_details',
             'from_status' => $previousStatus,
             'to_status' => 'need_more_details',
-            'comments' => $validated['comments'],
+            'comments_ar' => $validated['comments'],
+            'comments_en' => $validated['comments'],
         ]);
 
         // Send notifications to request creator
@@ -491,6 +499,8 @@ class WorkflowController extends Controller
 
         $validated = $request->validate([
             'comments' => 'nullable|string',
+            'attachments' => 'nullable|array|max:5',
+            'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png|max:10240', // 10MB
         ]);
 
         $userRequest = Request::where('id', $requestId)
@@ -507,7 +517,11 @@ class WorkflowController extends Controller
             'current_user_id' => null,
         ]);
 
-        // Create transition record
+        // Create transition record with auto-generated bilingual comments
+        $userComment = $validated['comments'] ?? '';
+        $commentsAr = $userComment ? $userComment : 'تم إكمال الطلب والموافقة عليه';
+        $commentsEn = $userComment ? $userComment : 'Request completed and approved';
+
         \App\Models\RequestTransition::create([
             'request_id' => $userRequest->id,
             'to_department_id' => $deptA->id,
@@ -515,8 +529,25 @@ class WorkflowController extends Controller
             'action' => 'complete',
             'from_status' => $previousStatus,
             'to_status' => 'completed',
-            'comments' => $validated['comments'] ?? 'Request completed and approved',
+            'comments_ar' => $commentsAr,
+            'comments_en' => $commentsEn,
         ]);
+
+        // Handle file attachments during completion
+        if ($request->hasFile('attachments')) {
+            foreach ($request->file('attachments') as $file) {
+                $path = $file->store('attachments', 'public');
+
+                \App\Models\RequestAttachment::create([
+                    'request_id' => $userRequest->id,
+                    'uploaded_by' => $user->id,
+                    'file_name' => $file->getClientOriginalName(),
+                    'file_path' => $path,
+                    'file_type' => $file->getMimeType(),
+                    'file_size' => $file->getSize(),
+                ]);
+            }
+        }
 
         // Send notifications to all stakeholders
         $this->notificationService->notifyRequestStakeholders(
@@ -524,7 +555,7 @@ class WorkflowController extends Controller
             NotificationService::TYPE_REQUEST_COMPLETED,
             'Request Completed',
             "Request '{$userRequest->title}' has been completed and approved!",
-            ['completion_comments' => $validated['comments'] ?? 'Request completed and approved']
+            ['completion_comments' => $commentsEn]
         );
 
         // Log request completion
@@ -597,7 +628,7 @@ class WorkflowController extends Controller
             'sla_reminder_sent_at' => null,
         ]);
 
-        // Create transition record
+        // Create transition record - store user's comments in both language fields
         \App\Models\RequestTransition::create([
             'request_id' => $userRequest->id,
             'from_department_id' => $deptA->id,
@@ -606,7 +637,8 @@ class WorkflowController extends Controller
             'action' => 'return_to_department',
             'from_status' => $previousStatus,
             'to_status' => 'in_review',
-            'comments' => $validated['comments'],
+            'comments_ar' => $validated['comments'],
+            'comments_en' => $validated['comments'],
         ]);
 
         // Send notifications to all stakeholders

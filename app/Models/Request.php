@@ -13,7 +13,6 @@ class Request extends Model
     protected $fillable = [
         'title',
         'description',
-        'idea_type_id',
         'department_id',
         'benefits',
         'user_id',
@@ -54,9 +53,9 @@ class Request extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function ideaType()
+    public function ideaTypes()
     {
-        return $this->belongsTo(IdeaType::class);
+        return $this->belongsToMany(IdeaType::class, 'request_idea_type');
     }
 
     public function department()
