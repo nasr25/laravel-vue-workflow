@@ -52,4 +52,11 @@ class Department extends Model
     {
         return $this->hasMany(Request::class, 'current_department_id');
     }
+
+
+    public function requests()
+    {
+        return $this->hasMany(Request::class);
+    }
+
 }
