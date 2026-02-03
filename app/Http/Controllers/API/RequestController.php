@@ -413,6 +413,21 @@ class RequestController extends Controller
             \App\Models\RequestEmployee::where('request_id', $userRequest->id)->delete();
         }
 
+        // Handle deletion of existing attachments
+        if ($request->has('delete_attachments')) {
+            $attachmentIds = $request->input('delete_attachments');
+            if (is_array($attachmentIds) && !empty($attachmentIds)) {
+                // Only delete attachments that belong to this request
+                $attachmentsToDelete = RequestAttachment::where('request_id', $userRequest->id)
+                    ->whereIn('id', $attachmentIds)
+                    ->get();
+
+                foreach ($attachmentsToDelete as $attachment) {
+                    $attachment->delete(); // This will also delete the file from storage
+                }
+            }
+        }
+
         // Handle file attachments
         if ($request->hasFile('attachments')) {
             $existingAttachmentsCount = $userRequest->attachments()->count();

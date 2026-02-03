@@ -119,6 +119,16 @@ class PermissionManagementController extends Controller
             ], 403);
         }
 
+        // Clear the permission cache first
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+
+        // Remove role associations directly from pivot table
+        \DB::table('model_has_roles')->where('role_id', $role->id)->delete();
+
+        // Remove role permissions associations
+        \DB::table('role_has_permissions')->where('role_id', $role->id)->delete();
+
+        // Delete the role
         $role->delete();
 
         return response()->json([
