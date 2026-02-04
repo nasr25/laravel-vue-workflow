@@ -29,6 +29,8 @@ class SettingsController extends Controller
         $publicKeys = [
             'site_name',
             'site_name_ar',
+            'site_description',
+            'site_description_ar',
             'logo',
             'favicon',
             'primary_color',

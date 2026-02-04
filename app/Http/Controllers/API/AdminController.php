@@ -214,7 +214,7 @@ class AdminController extends Controller
         $role = Role::where('name', 'LIKE', $validated['role'])->first(); 
         $user->assignRole($role);
 
-        if($validated['ou'] && $validated['ou'] != null) {
+        if(isset($validated['ou']) && $validated['ou'] != null) {
             $department = Department::whereIn('title', $validated['ou'])->first();
 
             if($department) {
