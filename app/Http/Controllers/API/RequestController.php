@@ -36,7 +36,7 @@ class RequestController extends Controller
         $search = $request->input('search');
 
         $query = Request::where('user_id', $user->id)
-            ->with(['ideaTypes', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'employees']);
+            ->with(['ideaTypes', 'department', 'currentDepartment', 'workflowPath', 'attachments.uploader', 'employees']);
 
         // Filter by status if provided
         if ($status && $status !== 'all') {
@@ -90,7 +90,7 @@ class RequestController extends Controller
             'benefits' => 'nullable|string',
             'status' => 'nullable|string|in:draft,pending',
             'attachments' => 'nullable|array|max:5',
-            'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png|max:10240', // Max 10MB per file
+            'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png,doc,docx,ppt,pptx|max:10240', // Max 10MB per file
             'idea_ownership_type' => 'nullable|string|in:individual,shared', // individual or shared
             'employees' => 'nullable|array',
             'employees.*.employee_name' => 'required|string',
@@ -175,6 +175,8 @@ class RequestController extends Controller
                     'file_path' => $path,
                     'file_type' => $file->getClientMimeType(),
                     'file_size' => $file->getSize(),
+                    'stage' => $status,
+                    'uploaded_at' => now(),
                 ]);
             }
         }
@@ -241,7 +243,7 @@ class RequestController extends Controller
                     // OR request is assigned to user
                     ->orWhere('current_user_id', $user->id);
             })
-            ->with(['user', 'ideaTypes', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'employees', 'transitions.actionedBy', 'transitions.toDepartment'])
+            ->with(['user', 'ideaTypes', 'department', 'currentDepartment', 'workflowPath', 'attachments.uploader', 'employees', 'transitions.actionedBy', 'transitions.toDepartment'])
             ->firstOrFail();
 
         return response()->json([
@@ -266,7 +268,7 @@ class RequestController extends Controller
             'additional_details' => 'sometimes|nullable|string',
             'status' => 'nullable|string|in:draft,pending',
             'attachments' => 'nullable|array|max:5',
-            'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png|max:10240', // Max 10MB per file
+            'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png,doc,docx,ppt,pptx|max:10240', // Max 10MB per file
             'idea_ownership_type' => 'nullable|string|in:individual,shared',
             'employees' => 'nullable|array',
             'employees.*.employee_name' => 'required|string',
@@ -453,6 +455,8 @@ class RequestController extends Controller
                     'file_path' => $path,
                     'file_type' => $file->getClientMimeType(),
                     'file_size' => $file->getSize(),
+                    'stage' => $userRequest->status,
+                    'uploaded_at' => now(),
                 ]);
             }
         }
@@ -620,6 +624,8 @@ class RequestController extends Controller
             'file_path' => $path,
             'file_type' => $file->getClientMimeType(),
             'file_size' => $file->getSize(),
+            'stage' => $userRequest->status,
+            'uploaded_at' => now(),
         ]);
 
         return response()->json([

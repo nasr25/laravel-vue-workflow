@@ -58,7 +58,7 @@ class WorkflowController extends Controller
         // Get all requests that are in Department A
         $requests = Request::where('current_department_id', $deptA->id)
             ->whereIn('status', ['pending', 'in_review'])
-            ->with(['user', 'currentDepartment', 'workflowPath', 'attachments', 'transitions.actionedBy'])
+            ->with(['user', 'currentDepartment', 'workflowPath', 'attachments.uploader', 'transitions.actionedBy'])
             ->orderBy('submitted_at', 'desc')
             ->get();
 
@@ -144,7 +144,7 @@ class WorkflowController extends Controller
             'currentDepartment',
             'currentAssignee',
             'workflowPath.steps.department',
-            'attachments',
+            'attachments.uploader',
             'employees',
             'ideaTypes',
             'department',
@@ -500,7 +500,7 @@ class WorkflowController extends Controller
         $validated = $request->validate([
             'comments' => 'nullable|string',
             'attachments' => 'nullable|array|max:5',
-            'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png|max:10240', // 10MB
+            'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png,doc,docx,ppt,pptx|max:10240', // 10MB
         ]);
 
         $userRequest = Request::where('id', $requestId)
@@ -545,6 +545,8 @@ class WorkflowController extends Controller
                     'file_path' => $path,
                     'file_type' => $file->getMimeType(),
                     'file_size' => $file->getSize(),
+                    'stage' => 'completed',
+                    'uploaded_at' => now(),
                 ]);
             }
         }

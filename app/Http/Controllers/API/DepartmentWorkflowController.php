@@ -30,7 +30,7 @@ class DepartmentWorkflowController extends Controller
         // Admin can see all requests
         if ($user->role === 'admin') {
             $requests = Request::whereIn('status', ['pending', 'in_review', 'in_progress'])
-                ->with(['user', 'currentDepartment', 'workflowPath.steps.department', 'attachments', 'transitions.actionedBy', 'currentAssignee'])
+                ->with(['user', 'currentDepartment', 'workflowPath.steps.department', 'attachments.uploader', 'transitions.actionedBy', 'currentAssignee'])
                 ->orderBy('updated_at', 'desc')
                 ->paginate($perPage);
 
@@ -84,7 +84,7 @@ class DepartmentWorkflowController extends Controller
         // This allows employees to see unassigned requests that managers might assign to them
         // Employees can only take action on requests assigned to them (controlled in other methods)
 
-        $requests = $query->with(['user', 'currentDepartment', 'workflowPath.steps.department', 'attachments', 'transitions.actionedBy', 'currentAssignee'])
+        $requests = $query->with(['user', 'currentDepartment', 'workflowPath.steps.department', 'attachments.uploader', 'transitions.actionedBy', 'currentAssignee'])
             ->orderBy('updated_at', 'desc')
             ->paginate($perPage);
 
@@ -595,7 +595,7 @@ class DepartmentWorkflowController extends Controller
         $validated = $request->validate([
             'comments' => 'required|string',
             'attachments' => 'nullable|array|max:5',
-            'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png|max:10240', // 10MB
+            'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png,doc,docx,ppt,pptx|max:10240', // 10MB
         ]);
 
         // Get departments where user is employee
@@ -644,6 +644,8 @@ class DepartmentWorkflowController extends Controller
                     'file_path' => $path,
                     'file_type' => $file->getMimeType(),
                     'file_size' => $file->getSize(),
+                    'stage' => 'in_progress',
+                    'uploaded_at' => now(),
                 ]);
             }
         }

@@ -17,6 +17,12 @@ class RequestAttachment extends Model
         'file_path',
         'file_type',
         'file_size',
+        'stage',
+        'uploaded_at',
+    ];
+
+    protected $casts = [
+        'uploaded_at' => 'datetime',
     ];
 
     public function request()
