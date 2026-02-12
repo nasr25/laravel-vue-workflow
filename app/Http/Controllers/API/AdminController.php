@@ -6,8 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Department;
 use App\Models\AuditLog;
+use App\Models\Survey;
+use App\Models\SurveyQuestion;
+use App\Models\SurveyQuestionOption;
 use App\Services\ExternalUserLookupService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role;
@@ -766,6 +770,326 @@ class AdminController extends Controller
         return response()->json([
             'configured' => $this->userLookupService->isConfigured(),
             'api_url' => config('services.user_lookup.url', env('USER_LOOKUP_API_URL'))
+        ]);
+    }
+
+    // ============= SURVEY MANAGEMENT =============
+
+    /**
+     * Get all surveys with question and response counts
+     */
+    public function getSurveys(Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $surveys = Survey::with(['questions.options'])->withCount('responses')->get();
+
+        return response()->json([
+            'surveys' => $surveys
+        ]);
+    }
+
+    /**
+     * Create a new survey with questions and options
+     */
+    public function createSurvey(Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'title_ar' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'description_ar' => 'nullable|string',
+            'is_active' => 'boolean',
+            'trigger_point' => 'nullable|in:post_submission,post_completion',
+            'questions' => 'required|array|min:1',
+            'questions.*.question_text' => 'required|string',
+            'questions.*.question_text_ar' => 'required|string',
+            'questions.*.question_type' => 'required|in:multiple_choice,satisfaction,text',
+            'questions.*.order' => 'integer',
+            'questions.*.is_required' => 'boolean',
+            'questions.*.is_active' => 'boolean',
+            'questions.*.options' => 'array',
+            'questions.*.options.*.option_text' => 'required|string',
+            'questions.*.options.*.option_text_ar' => 'required|string',
+            'questions.*.options.*.option_value' => 'required|integer',
+            'questions.*.options.*.order' => 'integer',
+        ]);
+
+        // Prevent multiple active surveys with the same trigger_point
+        $triggerPoint = $validated['trigger_point'] ?? null;
+        if ($triggerPoint) {
+            $existing = Survey::where('trigger_point', $triggerPoint)
+                ->where('is_active', true)
+                ->first();
+            if ($existing) {
+                return response()->json([
+                    'message' => "Another active survey already uses the '{$triggerPoint}' trigger point. Deactivate it first or remove its trigger point."
+                ], 400);
+            }
+        }
+
+        $survey = DB::transaction(function () use ($validated, $triggerPoint) {
+            $survey = Survey::create([
+                'title' => $validated['title'],
+                'title_ar' => $validated['title_ar'],
+                'description' => $validated['description'] ?? null,
+                'description_ar' => $validated['description_ar'] ?? null,
+                'is_active' => $validated['is_active'] ?? true,
+                'trigger_point' => $triggerPoint,
+            ]);
+
+            foreach ($validated['questions'] as $qData) {
+                $question = $survey->questions()->create([
+                    'question_text' => $qData['question_text'],
+                    'question_text_ar' => $qData['question_text_ar'],
+                    'question_type' => $qData['question_type'],
+                    'order' => $qData['order'] ?? 0,
+                    'is_required' => $qData['is_required'] ?? true,
+                    'is_active' => $qData['is_active'] ?? true,
+                ]);
+
+                if (!empty($qData['options'])) {
+                    foreach ($qData['options'] as $optData) {
+                        $question->options()->create([
+                            'option_text' => $optData['option_text'],
+                            'option_text_ar' => $optData['option_text_ar'],
+                            'option_value' => $optData['option_value'],
+                            'order' => $optData['order'] ?? 0,
+                        ]);
+                    }
+                }
+            }
+
+            return $survey;
+        });
+
+        AuditLog::log([
+            'action' => 'created',
+            'model_type' => 'Survey',
+            'model_id' => $survey->id,
+            'description' => "Admin created survey: {$survey->title}",
+        ]);
+
+        return response()->json([
+            'message' => 'Survey created successfully',
+            'survey' => $survey->load(['questions.options'])
+        ], 201);
+    }
+
+    /**
+     * Update an existing survey with questions and options
+     */
+    public function updateSurvey($id, Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $survey = Survey::findOrFail($id);
+
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'title_ar' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'description_ar' => 'nullable|string',
+            'is_active' => 'boolean',
+            'trigger_point' => 'nullable|in:post_submission,post_completion',
+            'questions' => 'required|array|min:1',
+            'questions.*.id' => 'nullable|integer',
+            'questions.*.question_text' => 'required|string',
+            'questions.*.question_text_ar' => 'required|string',
+            'questions.*.question_type' => 'required|in:multiple_choice,satisfaction,text',
+            'questions.*.order' => 'integer',
+            'questions.*.is_required' => 'boolean',
+            'questions.*.is_active' => 'boolean',
+            'questions.*.options' => 'array',
+            'questions.*.options.*.id' => 'nullable|integer',
+            'questions.*.options.*.option_text' => 'required|string',
+            'questions.*.options.*.option_text_ar' => 'required|string',
+            'questions.*.options.*.option_value' => 'required|integer',
+            'questions.*.options.*.order' => 'integer',
+        ]);
+
+        // Prevent multiple active surveys with the same trigger_point
+        $triggerPoint = $validated['trigger_point'] ?? null;
+        if ($triggerPoint) {
+            $existing = Survey::where('trigger_point', $triggerPoint)
+                ->where('is_active', true)
+                ->where('id', '!=', $survey->id)
+                ->first();
+            if ($existing) {
+                return response()->json([
+                    'message' => "Another active survey already uses the '{$triggerPoint}' trigger point. Deactivate it first or remove its trigger point."
+                ], 400);
+            }
+        }
+
+        DB::transaction(function () use ($survey, $validated, $triggerPoint) {
+            $survey->update([
+                'title' => $validated['title'],
+                'title_ar' => $validated['title_ar'],
+                'description' => $validated['description'] ?? null,
+                'description_ar' => $validated['description_ar'] ?? null,
+                'is_active' => $validated['is_active'] ?? true,
+                'trigger_point' => $triggerPoint,
+            ]);
+
+            $incomingQuestionIds = collect($validated['questions'])
+                ->pluck('id')
+                ->filter()
+                ->toArray();
+
+            // Delete removed questions
+            $survey->questions()->whereNotIn('id', $incomingQuestionIds)->delete();
+
+            foreach ($validated['questions'] as $qData) {
+                if (!empty($qData['id'])) {
+                    // Update existing question
+                    $question = SurveyQuestion::find($qData['id']);
+                    if ($question && $question->survey_id === $survey->id) {
+                        $question->update([
+                            'question_text' => $qData['question_text'],
+                            'question_text_ar' => $qData['question_text_ar'],
+                            'question_type' => $qData['question_type'],
+                            'order' => $qData['order'] ?? 0,
+                            'is_required' => $qData['is_required'] ?? true,
+                            'is_active' => $qData['is_active'] ?? true,
+                        ]);
+
+                        // Sync options
+                        $incomingOptionIds = collect($qData['options'] ?? [])
+                            ->pluck('id')
+                            ->filter()
+                            ->toArray();
+                        $question->options()->whereNotIn('id', $incomingOptionIds)->delete();
+
+                        foreach ($qData['options'] ?? [] as $optData) {
+                            if (!empty($optData['id'])) {
+                                SurveyQuestionOption::where('id', $optData['id'])
+                                    ->where('survey_question_id', $question->id)
+                                    ->update([
+                                        'option_text' => $optData['option_text'],
+                                        'option_text_ar' => $optData['option_text_ar'],
+                                        'option_value' => $optData['option_value'],
+                                        'order' => $optData['order'] ?? 0,
+                                    ]);
+                            } else {
+                                $question->options()->create([
+                                    'option_text' => $optData['option_text'],
+                                    'option_text_ar' => $optData['option_text_ar'],
+                                    'option_value' => $optData['option_value'],
+                                    'order' => $optData['order'] ?? 0,
+                                ]);
+                            }
+                        }
+                    }
+                } else {
+                    // Create new question
+                    $question = $survey->questions()->create([
+                        'question_text' => $qData['question_text'],
+                        'question_text_ar' => $qData['question_text_ar'],
+                        'question_type' => $qData['question_type'],
+                        'order' => $qData['order'] ?? 0,
+                        'is_required' => $qData['is_required'] ?? true,
+                        'is_active' => $qData['is_active'] ?? true,
+                    ]);
+
+                    foreach ($qData['options'] ?? [] as $optData) {
+                        $question->options()->create([
+                            'option_text' => $optData['option_text'],
+                            'option_text_ar' => $optData['option_text_ar'],
+                            'option_value' => $optData['option_value'],
+                            'order' => $optData['order'] ?? 0,
+                        ]);
+                    }
+                }
+            }
+        });
+
+        AuditLog::log([
+            'action' => 'updated',
+            'model_type' => 'Survey',
+            'model_id' => $survey->id,
+            'description' => "Admin updated survey: {$survey->title}",
+        ]);
+
+        return response()->json([
+            'message' => 'Survey updated successfully',
+            'survey' => $survey->load(['questions.options'])
+        ]);
+    }
+
+    /**
+     * Delete a survey (only if no responses exist)
+     */
+    public function deleteSurvey($id, Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $survey = Survey::withCount('responses')->findOrFail($id);
+
+        if ($survey->responses_count > 0) {
+            return response()->json([
+                'message' => "Cannot delete survey. It has {$survey->responses_count} response(s). Consider deactivating it instead."
+            ], 400);
+        }
+
+        $surveyTitle = $survey->title;
+        $survey->delete();
+
+        AuditLog::log([
+            'action' => 'deleted',
+            'model_type' => 'Survey',
+            'model_id' => $id,
+            'description' => "Admin deleted survey: {$surveyTitle}",
+        ]);
+
+        return response()->json([
+            'message' => 'Survey deleted successfully'
+        ]);
+    }
+
+    /**
+     * Toggle survey active status
+     */
+    public function toggleSurveyStatus($id, Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $survey = Survey::findOrFail($id);
+        $survey->is_active = !$survey->is_active;
+        $survey->save();
+
+        AuditLog::log([
+            'action' => 'updated',
+            'model_type' => 'Survey',
+            'model_id' => $survey->id,
+            'description' => "Admin " . ($survey->is_active ? 'activated' : 'deactivated') . " survey: {$survey->title}",
+        ]);
+
+        return response()->json([
+            'message' => $survey->is_active ? 'Survey activated' : 'Survey deactivated',
+            'survey' => $survey
+        ]);
+    }
+
+    /**
+     * Get survey responses with user and answer details
+     */
+    public function getSurveyResponses($id, Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $survey = Survey::with(['questions.options'])->findOrFail($id);
+
+        $responses = $survey->responses()
+            ->with(['user', 'answers.question', 'answers.selectedOption'])
+            ->orderBy('submitted_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'survey' => $survey,
+            'responses' => $responses
         ]);
     }
 

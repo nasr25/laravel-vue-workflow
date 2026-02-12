@@ -53,7 +53,7 @@ class RequestController extends Controller
 
         $requests = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
-        // Get status counts for the filter tabs
+        // Get status counts for the filter tabs (only user's own ideas)
         $statusCounts = [
             'all' => Request::where('user_id', $user->id)->count(),
             'draft' => Request::where('user_id', $user->id)->where('status', 'draft')->count(),
@@ -65,8 +65,18 @@ class RequestController extends Controller
             'completed' => Request::where('user_id', $user->id)->where('status', 'completed')->count(),
         ];
 
+        // Get ideas shared with the current user (where they are a collaborating employee but not the owner)
+        $sharedIdeas = Request::where('user_id', '!=', $user->id)
+            ->whereHas('employees', function($q) use ($user) {
+                $q->where('employee_email', $user->email);
+            })
+            ->with(['ideaTypes', 'department', 'currentDepartment', 'workflowPath', 'employees', 'user:id,username'])
+            ->orderBy('updated_at', 'desc')
+            ->get();
+
         return response()->json([
             'requests' => $requests->items(),
+            'shared_ideas' => $sharedIdeas,
             'pagination' => [
                 'current_page' => $requests->currentPage(),
                 'last_page' => $requests->lastPage(),
@@ -665,7 +675,7 @@ class RequestController extends Controller
 
         // Show only ideas that are in_progress or completed (exclude under review)
         $query = Request::whereIn('status', ['in_progress', 'completed'])
-            ->with(['user:id,username', 'ideaTypes:id,name,name_ar,color', 'department:id,name', 'workflowPath:id,name', 'currentAssignee:id,username']);
+            ->with(['user:id,username', 'ideaTypes:id,name,name_ar,color', 'department:id,name', 'workflowPath:id,name', 'currentAssignee:id,username', 'employees']);
 
         // Apply search filter
         if (!empty($search)) {
@@ -677,7 +687,6 @@ class RequestController extends Controller
 
         // Apply status filter
         if ($filter === 'in_progress') {
-            // Actively being worked on
             $query->where('status', 'in_progress');
         } elseif ($filter === 'completed') {
             $query->where('status', 'completed');
@@ -685,9 +694,7 @@ class RequestController extends Controller
         // If filter is 'all', show both in_progress and completed (already filtered above)
 
         // Get total count for statistics
-        // In Progress: actively being worked on
         $totalInProgress = Request::where('status', 'in_progress')->count();
-        // Completed: all completed ideas
         $totalCompleted = Request::where('status', 'completed')->count();
         $totalIdeas = $totalInProgress + $totalCompleted;
 

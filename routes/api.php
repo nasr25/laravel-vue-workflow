@@ -12,6 +12,7 @@ use App\Http\Controllers\API\SettingsController;
 use App\Http\Controllers\API\EmailTemplateController;
 use App\Http\Controllers\API\EmployeeController;
 use App\Http\Controllers\API\AuditLogController;
+use App\Http\Controllers\API\SurveyController;
 
 // Public routes
 Route::post('/auth/register', [AuthController::class, 'register']);
@@ -182,6 +183,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/toggle-status', [EmailTemplateController::class, 'toggleStatus']);
         Route::post('/{id}/send-test', [EmailTemplateController::class, 'sendTest']);
     });
+
+    // Survey Management (Admin)
+    Route::get('/admin/surveys', [AdminController::class, 'getSurveys']);
+    Route::post('/admin/surveys', [AdminController::class, 'createSurvey']);
+    Route::put('/admin/surveys/{id}', [AdminController::class, 'updateSurvey']);
+    Route::delete('/admin/surveys/{id}', [AdminController::class, 'deleteSurvey']);
+    Route::post('/admin/surveys/{id}/toggle-status', [AdminController::class, 'toggleSurveyStatus']);
+    Route::get('/admin/surveys/{id}/responses', [AdminController::class, 'getSurveyResponses']);
+
+    // User Survey Routes
+    Route::get('/surveys', [SurveyController::class, 'getActiveSurveys']);
+    Route::get('/surveys/my-responses', [SurveyController::class, 'getMyResponses']);
+    Route::get('/surveys/trigger/{triggerPoint}', [SurveyController::class, 'getTriggerSurvey']);
+    Route::get('/surveys/{id}', [SurveyController::class, 'getSurvey']);
+    Route::post('/surveys/{id}/submit', [SurveyController::class, 'submitSurvey']);
 
     // Idea Types Management (Admin only)
     Route::prefix('admin/idea-types')->middleware('admin')->group(function () {
