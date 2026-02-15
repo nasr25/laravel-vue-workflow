@@ -10,23 +10,23 @@ use Illuminate\Support\Facades\Validator;
 class IdeaTypeController extends Controller
 {
     /**
-     * Display a listing of the idea types.
-     * Returns only active types for regular users, all types for admins.
+     * Display active idea types only (used by the public form route).
      */
     public function index(Request $request)
     {
-        // Check if user is admin (for admin panel usage)
-        $user = $request->user();
-        $isAdmin = $user && $user->role === 'admin';
+        $ideaTypes = IdeaType::ordered()->active()->get();
 
-        $query = IdeaType::ordered();
+        return response()->json([
+            'ideaTypes' => $ideaTypes
+        ]);
+    }
 
-        // If not admin, only show active types
-        if (!$isAdmin) {
-            $query->active();
-        }
-
-        $ideaTypes = $query->get();
+    /**
+     * Display all idea types including inactive (used by admin panel).
+     */
+    public function adminIndex(Request $request)
+    {
+        $ideaTypes = IdeaType::ordered()->get();
 
         return response()->json([
             'ideaTypes' => $ideaTypes

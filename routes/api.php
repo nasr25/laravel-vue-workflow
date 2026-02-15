@@ -202,7 +202,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Idea Types Management (Admin only)
     Route::prefix('admin/idea-types')->middleware('admin')->group(function () {
-        Route::get('/', [App\Http\Controllers\API\IdeaTypeController::class, 'index']);
+        Route::get('/', [App\Http\Controllers\API\IdeaTypeController::class, 'adminIndex']);
         Route::post('/', [App\Http\Controllers\API\IdeaTypeController::class, 'store']);
         Route::get('/{ideaType}', [App\Http\Controllers\API\IdeaTypeController::class, 'show']);
         Route::put('/{ideaType}', [App\Http\Controllers\API\IdeaTypeController::class, 'update']);
