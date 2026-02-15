@@ -64,6 +64,40 @@ class IdeaTypeController extends Controller
     }
 
     /**
+     * Quick store - allows any authenticated user to create a new idea type
+     * with just name and name_ar. Color is auto-generated.
+     */
+    public function quickStore(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'name_ar' => 'required|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $ideaType = IdeaType::create([
+            'name' => $request->name,
+            'name_ar' => $request->name_ar,
+            'description' => '',
+            'description_ar' => '',
+            'color' => '#6b7280',
+            'is_active' => false,
+            'order' => 0,
+        ]);
+
+        return response()->json([
+            'message' => 'Idea type created successfully',
+            'ideaType' => $ideaType
+        ], 201);
+    }
+
+    /**
      * Display the specified idea type.
      */
     public function show(IdeaType $ideaType)

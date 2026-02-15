@@ -33,6 +33,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Idea Types (Public for form - active types only)
     Route::get('/idea-types', [App\Http\Controllers\API\IdeaTypeController::class, 'index']);
+    Route::post('/idea-types', [App\Http\Controllers\API\IdeaTypeController::class, 'quickStore']);
 
     // Employee search
     Route::get('/employees/search', [EmployeeController::class, 'search']);
