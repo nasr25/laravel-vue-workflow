@@ -528,6 +528,35 @@ class DepartmentWorkflowController extends Controller
     /**
      * Employee updates progress on request
      */
+    /**
+     * Employee updates their expected start/execution date
+     */
+    public function employeeUpdateStartDate($requestId, HttpRequest $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'expected_execution_date' => 'required|date|after_or_equal:today',
+        ]);
+
+        $userDepartments = $user->departments()->pluck('departments.id');
+
+        $userRequest = Request::where('id', $requestId)
+            ->whereIn('current_department_id', $userDepartments)
+            ->where('current_user_id', $user->id)
+            ->where('status', 'in_progress')
+            ->firstOrFail();
+
+        $userRequest->update([
+            'expected_execution_date' => $validated['expected_execution_date'],
+        ]);
+
+        return response()->json([
+            'message' => 'Start date updated successfully',
+            'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
+        ]);
+    }
+
     public function employeeUpdateProgress($requestId, HttpRequest $request)
     {
         $user = $request->user();
@@ -917,6 +946,44 @@ class DepartmentWorkflowController extends Controller
 
         return response()->json([
             'message' => 'Idea accepted for later implementation',
+            'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
+        ]);
+    }
+
+    /**
+     * Update the expected execution date of an accepted-for-later idea
+     */
+    public function updateExecutionDate($requestId, HttpRequest $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'expected_execution_date' => 'required|date|after_or_equal:today',
+        ]);
+
+        $managedDepartments = $user->departments()
+            ->where('department_user.role', 'manager')
+            ->pluck('departments.id');
+
+        if ($managedDepartments->isEmpty()) {
+            return response()->json([
+                'message' => 'Only department managers can update execution date'
+            ], 403);
+        }
+
+        $userRequest = Request::where('id', $requestId)
+            ->whereIn('current_department_id', $managedDepartments)
+            ->where('status', 'pending')
+            ->whereNotNull('expected_execution_date')
+            ->whereNull('current_user_id')
+            ->firstOrFail();
+
+        $userRequest->update([
+            'expected_execution_date' => $validated['expected_execution_date'],
+        ]);
+
+        return response()->json([
+            'message' => 'Execution date updated successfully',
             'request' => $userRequest->load(['currentDepartment', 'workflowPath'])
         ]);
     }

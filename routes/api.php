@@ -89,10 +89,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/department/requests/{requestId}/path-evaluation', [DepartmentWorkflowController::class, 'submitPathEvaluation']);
     Route::post('/department/requests/{requestId}/accept-later', [DepartmentWorkflowController::class, 'acceptIdeaForLater']);
     Route::post('/department/requests/{requestId}/activate', [DepartmentWorkflowController::class, 'activateAcceptedIdea']);
+    Route::post('/department/requests/{requestId}/update-execution-date', [DepartmentWorkflowController::class, 'updateExecutionDate']);
     Route::post('/department/requests/{requestId}/reject', [DepartmentWorkflowController::class, 'rejectIdea']);
     // Employee actions
     Route::post('/department/requests/{requestId}/employee-reject', [DepartmentWorkflowController::class, 'employeeRejectRequest']);
     Route::post('/department/requests/{requestId}/employee-accept', [DepartmentWorkflowController::class, 'employeeAcceptRequest']);
+    Route::post('/department/requests/{requestId}/employee-update-start-date', [DepartmentWorkflowController::class, 'employeeUpdateStartDate']);
     Route::post('/department/requests/{requestId}/employee-update-progress', [DepartmentWorkflowController::class, 'employeeUpdateProgress']);
     Route::post('/department/requests/{requestId}/employee-complete', [DepartmentWorkflowController::class, 'employeeCompleteRequest']);
 
