@@ -9,7 +9,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('survey_responses', function (Blueprint $table) {
-            $table->unsignedBigInteger('request_id')->nullable()->after('user_id');
+            if(!Schema::hasColumn('survey_responses', 'request_id')) {
+                Schema::table('survey_responses', function (Blueprint $table) {
+                    $table->unsignedBigInteger('request_id')->nullable()->after('user_id');
+                });
+            }
 
             // Drop old unique constraint (survey_id, user_id) so user can respond per-idea
             $table->dropUnique(['survey_id', 'user_id']);
