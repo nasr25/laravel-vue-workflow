@@ -144,10 +144,15 @@ class DepartmentWorkflowController extends Controller
                     ->latest()
                     ->first();
 
+                // Check if idea was returned from Dept A back to this department
+                $reassignedAfterRejection = $lastTransitionToCurrentDept
+                    && $lastTransitionToCurrentDept->action === 'return_to_department';
+
                 $request->was_assigned_to_employee = $lastEmployeeAssignment !== null;
                 $request->last_assigned_user_id = $lastEmployeeAssignment?->to_user_id ?? null;
                 $request->returned_from_employee = $returnedFromEmployee;
                 $request->employee_completed = $employeeCompleted;
+                $request->reassigned_after_rejection = $reassignedAfterRejection;
             } else {
                 $request->has_evaluated = true; // Employees don't need to evaluate
                 $request->requires_evaluation = false;
@@ -156,6 +161,7 @@ class DepartmentWorkflowController extends Controller
                 $request->last_assigned_user_id = null;
                 $request->returned_from_employee = false;
                 $request->employee_completed = false;
+                $request->reassigned_after_rejection = false;
             }
         });
 
