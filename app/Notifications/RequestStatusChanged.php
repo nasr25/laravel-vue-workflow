@@ -47,7 +47,9 @@ class RequestStatusChanged extends Notification implements ShouldQueue
     {
         $statusLabels = [
             'draft' => 'Draft',
-            'pending' => 'Pending Review',
+            'first_screening' => 'First Screening',
+            'final_review' => 'Final Review',
+            'temporarily_pending' => 'Temporarily Pending',
             'in_review' => 'In Review',
             'need_more_details' => 'Need More Details',
             'approved' => 'Approved',

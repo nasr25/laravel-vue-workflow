@@ -133,7 +133,7 @@ class AdminController extends Controller
         $department = Department::findOrFail($id);
 
         // Check if department has active requests
-        if ($department->requests()->whereIn('status', ['pending', 'in_review'])->exists()) {
+        if ($department->requests()->whereIn('status', ['first_screening', 'final_review', 'temporarily_pending', 'in_review'])->exists()) {
             return response()->json([
                 'message' => 'Cannot delete department with active requests'
             ], 400);
@@ -314,7 +314,7 @@ class AdminController extends Controller
         }
 
         // Check if user has active requests assigned
-        if ($user->assignedRequests()->whereIn('status', ['pending', 'in_review'])->exists()) {
+        if ($user->assignedRequests()->whereIn('status', ['first_screening', 'final_review', 'temporarily_pending', 'in_review'])->exists()) {
             return response()->json([
                 'message' => 'Cannot delete user with active assigned requests'
             ], 400);
@@ -429,7 +429,7 @@ class AdminController extends Controller
         // Check if user has active requests in this department
         if ($user->assignedRequests()
             ->where('current_department_id', $department->id)
-            ->whereIn('status', ['pending', 'in_review'])
+            ->whereIn('status', ['first_screening', 'final_review', 'temporarily_pending', 'in_review'])
             ->exists()) {
             return response()->json([
                 'message' => 'Cannot remove user from department with active assigned requests'

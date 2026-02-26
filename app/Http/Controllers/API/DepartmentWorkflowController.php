@@ -29,7 +29,7 @@ class DepartmentWorkflowController extends Controller
 
         // Admin can see all requests
         if ($user->role === 'admin') {
-            $requests = Request::whereIn('status', ['pending', 'in_review', 'in_progress'])
+            $requests = Request::whereIn('status', ['temporarily_pending', 'final_review', 'in_review', 'in_progress'])
                 ->with(['user', 'currentDepartment', 'workflowPath.steps.department', 'attachments.uploader', 'transitions.actionedBy', 'currentAssignee'])
                 ->orderBy('updated_at', 'desc')
                 ->paginate($perPage);
@@ -72,9 +72,9 @@ class DepartmentWorkflowController extends Controller
         // Get requests in user's departments
         // If user is a manager, show all requests in their department
         // If user is an employee, show all requests (both assigned and unassigned)
-        // Managers also see 'pending' status (accepted for later) and 'missing_requirement'
+        // Managers also see 'temporarily_pending' status (accepted for later) and 'missing_requirement'
         $statusFilter = $isManager
-            ? ['in_review', 'in_progress', 'pending', 'missing_requirement']
+            ? ['final_review', 'in_review', 'in_progress', 'temporarily_pending', 'missing_requirement']
             : ['in_review', 'in_progress', 'missing_requirement'];
 
         $query = Request::whereIn('current_department_id', $userDepartments)
@@ -234,7 +234,7 @@ class DepartmentWorkflowController extends Controller
 
         $userRequest = Request::where('id', $requestId)
             ->whereIn('current_department_id', $managedDepartments)
-            ->whereIn('status', ['in_review', 'in_progress'])
+            ->whereIn('status', ['final_review', 'in_review', 'in_progress'])
             ->firstOrFail();
 
         // Verify employee belongs to the same department
@@ -733,7 +733,7 @@ class DepartmentWorkflowController extends Controller
 
         $userRequest = Request::where('id', $requestId)
             ->whereIn('current_department_id', $managedDepartments)
-            ->whereIn('status', ['in_review', 'in_progress'])
+            ->whereIn('status', ['final_review', 'in_review', 'in_progress'])
             ->whereNull('current_user_id') // Must not be assigned to employee
             ->firstOrFail();
 
@@ -902,7 +902,7 @@ class DepartmentWorkflowController extends Controller
 
         $userRequest = Request::where('id', $requestId)
             ->whereIn('current_department_id', $managedDepartments)
-            ->whereIn('status', ['in_review', 'in_progress'])
+            ->whereIn('status', ['final_review', 'in_review', 'in_progress'])
             ->whereNull('current_user_id')
             ->firstOrFail();
 
@@ -911,7 +911,7 @@ class DepartmentWorkflowController extends Controller
 
         // Mark as accepted for later - keep in same department but mark differently
         $userRequest->update([
-            'status' => 'pending', // Change status to pending for later review
+            'status' => 'temporarily_pending', // Change status to temporarily_pending for later review
             'expected_execution_date' => $validated['expected_execution_date'],
         ]);
 
@@ -927,7 +927,7 @@ class DepartmentWorkflowController extends Controller
             'actioned_by' => $user->id,
             'action' => 'accept_later',
             'from_status' => $previousStatus,
-            'to_status' => 'pending',
+            'to_status' => 'temporarily_pending',
             'comments_ar' => $commentsAr,
             'comments_en' => $commentsEn,
         ]);
@@ -979,7 +979,7 @@ class DepartmentWorkflowController extends Controller
 
         $userRequest = Request::where('id', $requestId)
             ->whereIn('current_department_id', $managedDepartments)
-            ->where('status', 'pending')
+            ->where('status', 'temporarily_pending')
             ->whereNotNull('expected_execution_date')
             ->whereNull('current_user_id')
             ->firstOrFail();
@@ -1018,7 +1018,7 @@ class DepartmentWorkflowController extends Controller
 
         $userRequest = Request::where('id', $requestId)
             ->whereIn('current_department_id', $managedDepartments)
-            ->where('status', 'pending')
+            ->where('status', 'temporarily_pending')
             ->whereNotNull('expected_execution_date')
             ->whereNull('current_user_id')
             ->firstOrFail();
@@ -1097,7 +1097,7 @@ class DepartmentWorkflowController extends Controller
 
         $userRequest = Request::where('id', $requestId)
             ->whereIn('current_department_id', $managedDepartments)
-            ->whereIn('status', ['in_review', 'in_progress'])
+            ->whereIn('status', ['final_review', 'in_review', 'in_progress'])
             ->whereNull('current_user_id')
             ->firstOrFail();
 

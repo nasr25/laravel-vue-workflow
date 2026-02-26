@@ -57,7 +57,7 @@ class WorkflowController extends Controller
 
         // Get all requests that are in Department A
         $requests = Request::where('current_department_id', $deptA->id)
-            ->whereIn('status', ['pending', 'in_review'])
+            ->whereIn('status', ['first_screening', 'in_review'])
             ->with(['user', 'currentDepartment', 'workflowPath', 'attachments.uploader', 'transitions.actionedBy'])
             ->orderBy('submitted_at', 'desc')
             ->get();
@@ -262,7 +262,7 @@ class WorkflowController extends Controller
 
         $userRequest = Request::where('id', $requestId)
             ->where('current_department_id', $deptA->id)
-            ->whereIn('status', ['pending', 'in_review'])
+            ->whereIn('status', ['first_screening', 'in_review'])
             ->firstOrFail();
 
         $workflowPath = WorkflowPath::with('steps')->findOrFail($validated['workflow_path_id']);
@@ -276,11 +276,17 @@ class WorkflowController extends Controller
             ], 400);
         }
 
+        // Capture the previous status before updating
+        $previousStatus = $userRequest->status;
+
+        // Determine target status: first_screening -> final_review, otherwise in_review
+        $targetStatus = $previousStatus === 'first_screening' ? 'final_review' : 'in_review';
+
         // Update request with workflow path and move to first department
         $userRequest->update([
             'workflow_path_id' => $workflowPath->id,
             'current_department_id' => $firstStep->department_id,
-            'status' => 'in_review',
+            'status' => $targetStatus,
             'current_stage_started_at' => now(),
             'sla_reminder_sent_at' => null,
         ]);
@@ -295,8 +301,8 @@ class WorkflowController extends Controller
             'to_department_id' => $firstStep->department_id,
             'actioned_by' => $user->id,
             'action' => 'assign_path',
-            'from_status' => 'pending',
-            'to_status' => 'in_review',
+            'from_status' => $previousStatus,
+            'to_status' => $targetStatus,
             'comments_ar' => $commentsAr,
             'comments_en' => $commentsEn,
         ]);
@@ -352,7 +358,7 @@ class WorkflowController extends Controller
 
         $userRequest = Request::where('id', $requestId)
             ->where('current_department_id', $deptA->id)
-            ->whereIn('status', ['pending', 'in_review'])
+            ->whereIn('status', ['first_screening', 'in_review'])
             ->firstOrFail();
 
         $previousStatus = $userRequest->status;
@@ -429,7 +435,7 @@ class WorkflowController extends Controller
 
         $userRequest = Request::where('id', $requestId)
             ->where('current_department_id', $deptA->id)
-            ->whereIn('status', ['pending', 'in_review'])
+            ->whereIn('status', ['first_screening', 'in_review'])
             ->firstOrFail();
 
         $previousStatus = $userRequest->status;
@@ -505,7 +511,7 @@ class WorkflowController extends Controller
 
         $userRequest = Request::where('id', $requestId)
             ->where('current_department_id', $deptA->id)
-            ->whereIn('status', ['pending', 'in_review'])
+            ->whereIn('status', ['first_screening', 'in_review'])
             ->firstOrFail();
 
         $previousStatus = $userRequest->status;
@@ -602,7 +608,7 @@ class WorkflowController extends Controller
 
         $userRequest = Request::where('id', $requestId)
             ->where('current_department_id', $deptA->id)
-            ->whereIn('status', ['pending', 'in_review'])
+            ->whereIn('status', ['first_screening', 'in_review'])
             ->firstOrFail();
 
         // Find the previous department from transitions

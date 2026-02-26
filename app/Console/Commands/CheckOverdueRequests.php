@@ -66,7 +66,7 @@ class CheckOverdueRequests extends Command
         $days = config('sla.dept_a_review_days', 3);
         $cutoffDate = Carbon::now()->subDays($days);
 
-        $requests = Request::where('status', 'pending')
+        $requests = Request::where('status', 'first_screening')
             ->whereNotNull('current_stage_started_at')
             ->where('current_stage_started_at', '<=', $cutoffDate)
             ->where(function ($query) use ($cutoffDate) {
@@ -93,7 +93,7 @@ class CheckOverdueRequests extends Command
         $days = config('sla.dept_manager_review_days', 5);
         $cutoffDate = Carbon::now()->subDays($days);
 
-        $requests = Request::where('status', 'in_review')
+        $requests = Request::whereIn('status', ['final_review', 'in_review'])
             ->whereNotNull('workflow_path_id')
             ->whereNull('current_user_id')
             ->whereNotNull('current_stage_started_at')

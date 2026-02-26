@@ -57,7 +57,9 @@ class RequestController extends Controller
         $statusCounts = [
             'all' => Request::where('user_id', $user->id)->count(),
             'draft' => Request::where('user_id', $user->id)->where('status', 'draft')->count(),
-            'pending' => Request::where('user_id', $user->id)->where('status', 'pending')->count(),
+            'first_screening' => Request::where('user_id', $user->id)->where('status', 'first_screening')->count(),
+            'final_review' => Request::where('user_id', $user->id)->where('status', 'final_review')->count(),
+            'temporarily_pending' => Request::where('user_id', $user->id)->where('status', 'temporarily_pending')->count(),
             'in_review' => Request::where('user_id', $user->id)->where('status', 'in_review')->count(),
             'need_more_details' => Request::where('user_id', $user->id)->where('status', 'need_more_details')->count(),
             'approved' => Request::where('user_id', $user->id)->where('status', 'approved')->count(),
@@ -98,7 +100,7 @@ class RequestController extends Controller
             'idea_types.*' => 'integer|exists:idea_types,id', // Each idea type ID must exist
             'department' => 'required|string', // Can be department ID or "unknown"
             'benefits' => 'nullable|string',
-            'status' => 'nullable|string|in:draft,pending',
+            'status' => 'nullable|string|in:draft,first_screening',
             'attachments' => 'nullable|array|max:5',
             'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png,doc,docx,ppt,pptx|max:10240', // Max 10MB per file
             'idea_ownership_type' => 'nullable|string|in:individual,shared', // individual or shared
@@ -123,7 +125,7 @@ class RequestController extends Controller
         }
 
         // If submitting directly (not draft), assign to Department A
-        if ($status === 'pending') {
+        if ($status === 'first_screening') {
             $departmentA = \App\Models\Department::where('is_department_a', true)->first();
             if ($departmentA) {
                 $currentDepartmentId = $departmentA->id;
@@ -145,7 +147,7 @@ class RequestController extends Controller
             'status' => $status,
             'idea_type' => $validated['idea_ownership_type'] ?? 'individual',
             'current_department_id' => $currentDepartmentId,
-            'submitted_at' => $status === 'pending' ? now() : null,
+            'submitted_at' => $status === 'first_screening' ? now() : null,
         ]);
 
         // Sync idea types (many-to-many relationship)
@@ -192,14 +194,14 @@ class RequestController extends Controller
         }
 
         // Create transition if submitted
-        if ($status === 'pending' && $currentDepartmentId) {
+        if ($status === 'first_screening' && $currentDepartmentId) {
             \App\Models\RequestTransition::create([
                 'request_id' => $userRequest->id,
                 'to_department_id' => $currentDepartmentId,
                 'actioned_by' => $request->user()->id,
                 'action' => 'submit',
                 'from_status' => 'draft',
-                'to_status' => 'pending',
+                'to_status' => 'first_screening',
                 'comments' => 'Request submitted for review',
             ]);
 
@@ -216,16 +218,16 @@ class RequestController extends Controller
         // Log request creation
         AuditLog::log([
             'user_id' => $request->user()->id,
-            'action' => $status === 'pending' ? 'submitted' : 'created',
+            'action' => $status === 'first_screening' ? 'submitted' : 'created',
             'model_type' => 'Request',
             'model_id' => $userRequest->id,
-            'description' => $status === 'pending'
+            'description' => $status === 'first_screening'
                 ? "User submitted request: {$userRequest->title}"
                 : "User saved request draft: {$userRequest->title}",
         ]);
 
         return response()->json([
-            'message' => $status === 'pending' ? 'Idea submitted successfully' : 'Draft saved successfully',
+            'message' => $status === 'first_screening' ? 'Idea submitted successfully' : 'Draft saved successfully',
             'request' => $userRequest->load(['ideaTypes', 'department', 'currentDepartment', 'workflowPath', 'attachments', 'employees'])
         ], 201);
     }
@@ -276,7 +278,7 @@ class RequestController extends Controller
             'department' => 'nullable|string',
             'benefits' => 'nullable|string',
             'additional_details' => 'sometimes|nullable|string',
-            'status' => 'nullable|string|in:draft,pending',
+            'status' => 'nullable|string|in:draft,first_screening',
             'attachments' => 'nullable|array|max:5',
             'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png,doc,docx,ppt,pptx|max:10240', // Max 10MB per file
             'idea_ownership_type' => 'nullable|string|in:individual,shared',
@@ -316,8 +318,8 @@ class RequestController extends Controller
         $status = $validated['status'] ?? $userRequest->status;
         $departmentId = $userRequest->current_department_id;
 
-        // If submitting (changing from draft/need_more_details to pending)
-        if ($status === 'pending' && in_array($userRequest->status, ['draft', 'need_more_details', 'rejected'])) {
+        // If submitting (changing from draft/need_more_details to first_screening)
+        if ($status === 'first_screening' && in_array($userRequest->status, ['draft', 'need_more_details', 'rejected'])) {
             $departmentA = \App\Models\Department::where('is_department_a', true)->first();
             if ($departmentA) {
                 $previousStatus = $userRequest->status;
@@ -325,7 +327,7 @@ class RequestController extends Controller
 
                 // Determine target department based on whether this is a resubmission
                 $targetDepartmentId = $departmentA->id;
-                $targetStatus = 'pending';
+                $targetStatus = 'first_screening';
                 $routeLeaderId = null;
 
                 if ($isResubmit) {
@@ -481,7 +483,7 @@ class RequestController extends Controller
         ]);
 
         return response()->json([
-            'message' => $status === 'pending' ? 'Idea submitted successfully' : 'Draft updated successfully',
+            'message' => $status === 'first_screening' ? 'Idea submitted successfully' : 'Draft updated successfully',
             'request' => $userRequest->load(['currentDepartment', 'workflowPath', 'attachments'])
         ]);
     }
@@ -535,7 +537,7 @@ class RequestController extends Controller
 
         // Determine target department based on whether this is a resubmission
         $targetDepartmentId = $departmentA->id;
-        $targetStatus = 'pending';
+        $targetStatus = 'first_screening';
         $routeLeaderId = null;
 
         if ($isResubmit) {
@@ -776,7 +778,7 @@ class RequestController extends Controller
         // Calculate statistics
         $stats = [
             'totalRequests' => (clone $baseQuery)->count(),
-            'pendingRequests' => (clone $baseQuery)->whereIn('status', ['pending', 'in_review'])->count(),
+            'pendingRequests' => (clone $baseQuery)->whereIn('status', ['first_screening', 'final_review', 'temporarily_pending', 'in_review'])->count(),
             'inProgressRequests' => (clone $baseQuery)->where('status', 'in_progress')->count(),
             'approvedRequests' => (clone $baseQuery)->where('status', 'approved')->count(),
             'rejectedRequests' => (clone $baseQuery)->where('status', 'rejected')->count(),
