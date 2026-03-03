@@ -223,6 +223,10 @@ class RolesAndPermissionsSeeder extends Seeder
                     $user->assignRole('Admin');
                     break;
 
+                case 'supervisor':
+                    $user->assignRole('Supervisor');
+                    break;
+
                 case 'manager':
                     // Check if user is in Department A
                     $isDeptAManager = $user->departments()

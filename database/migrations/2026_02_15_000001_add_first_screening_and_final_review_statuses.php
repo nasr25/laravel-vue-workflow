@@ -12,8 +12,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Alter the status ENUM to include first_screening and final_review
-        DB::statement("ALTER TABLE requests MODIFY COLUMN status ENUM('draft','pending','first_screening','final_review','in_review','in_progress','need_more_details','missing_requirement','approved','rejected','completed') NOT NULL DEFAULT 'draft'");
+        // Alter the status ENUM to include first_screening and final_review (MySQL only; SQLite has no ENUM constraint)
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE requests MODIFY COLUMN status ENUM('draft','pending','first_screening','final_review','in_review','in_progress','need_more_details','missing_requirement','approved','rejected','completed') NOT NULL DEFAULT 'draft'");
+        }
 
         // Migrate existing data: update pending requests at Dept A
         // (without expected_execution_date and without workflow_path_id) to first_screening
@@ -43,7 +45,9 @@ return new class extends Migration
             ->where('status', 'final_review')
             ->update(['status' => 'in_review']);
 
-        // Remove the new enum values
-        DB::statement("ALTER TABLE requests MODIFY COLUMN status ENUM('draft','pending','in_review','in_progress','need_more_details','missing_requirement','approved','rejected','completed') NOT NULL DEFAULT 'draft'");
+        // Remove the new enum values (MySQL only)
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE requests MODIFY COLUMN status ENUM('draft','pending','in_review','in_progress','need_more_details','missing_requirement','approved','rejected','completed') NOT NULL DEFAULT 'draft'");
+        }
     }
 };

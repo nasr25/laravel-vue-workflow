@@ -27,12 +27,14 @@ class WorkflowTest extends TestCase
     public function test_user_can_create_and_submit_request(): void
     {
         $user = User::where('email', 'user@workflow.com')->first();
+        $deptA = Department::where('is_department_a', true)->first();
 
-        // Create request
+        // Create request (department field is required)
         $response = $this->actingAs($user, 'sanctum')
             ->postJson('/api/requests', [
                 'title' => 'Test Request',
-                'description' => 'This is a test request'
+                'description' => 'This is a test request with enough details for validation',
+                'department' => (string) $deptA->id,
             ]);
 
         $response->assertStatus(201)
@@ -52,12 +54,10 @@ class WorkflowTest extends TestCase
                 'message' => 'Request submitted successfully'
             ]);
 
-        // Verify request is in Department A with pending status
+        // Verify request is in Department A with first_screening status
         $request = Request::find($requestId);
-        $this->assertEquals('pending', $request->status);
+        $this->assertEquals('first_screening', $request->status);
         $this->assertNotNull($request->current_department_id);
-
-        $deptA = Department::where('is_department_a', true)->first();
         $this->assertEquals($deptA->id, $request->current_department_id);
     }
 
@@ -68,17 +68,17 @@ class WorkflowTest extends TestCase
     {
         $user = User::where('email', 'user@workflow.com')->first();
         $managerA = User::where('email', 'manager.a@workflow.com')->first();
+        $deptA = Department::where('is_department_a', true)->first();
 
-        // Create and submit a request
+        // Create a request in first_screening status at Dept A
         $request = Request::create([
             'title' => 'Test Request',
             'description' => 'Test Description',
             'user_id' => $user->id,
-            'status' => 'draft'
+            'status' => 'first_screening',
+            'current_department_id' => $deptA->id,
+            'submitted_at' => now()
         ]);
-
-        $this->actingAs($user, 'sanctum')
-            ->postJson("/api/requests/{$request->id}/submit");
 
         // Manager A should see the request
         $response = $this->actingAs($managerA, 'sanctum')
@@ -103,12 +103,12 @@ class WorkflowTest extends TestCase
         $managerA = User::where('email', 'manager.a@workflow.com')->first();
         $deptA = Department::where('is_department_a', true)->first();
 
-        // Create and submit request
+        // Create request in first_screening status
         $request = Request::create([
             'title' => 'Test Request',
             'description' => 'Test Description',
             'user_id' => $user->id,
-            'status' => 'pending',
+            'status' => 'first_screening',
             'current_department_id' => $deptA->id,
             'submitted_at' => now()
         ]);
@@ -128,10 +128,10 @@ class WorkflowTest extends TestCase
                 'message' => 'Request assigned to workflow path successfully'
             ]);
 
-        // Verify request has been assigned
+        // Verify request has been assigned (first_screening -> final_review)
         $request->refresh();
         $this->assertEquals($workflowPath->id, $request->workflow_path_id);
-        $this->assertEquals('in_review', $request->status);
+        $this->assertEquals('final_review', $request->status);
     }
 
     /**
@@ -147,7 +147,7 @@ class WorkflowTest extends TestCase
             'title' => 'Test Request',
             'description' => 'Test Description',
             'user_id' => $user->id,
-            'status' => 'pending',
+            'status' => 'first_screening',
             'current_department_id' => $deptA->id,
             'submitted_at' => now()
         ]);
@@ -177,7 +177,7 @@ class WorkflowTest extends TestCase
             'title' => 'Test Request',
             'description' => 'Test Description',
             'user_id' => $user->id,
-            'status' => 'pending',
+            'status' => 'first_screening',
             'current_department_id' => $deptA->id,
             'submitted_at' => now()
         ]);
@@ -296,7 +296,7 @@ class WorkflowTest extends TestCase
 
         $request->refresh();
         $this->assertEquals($deptA->id, $request->current_department_id);
-        $this->assertEquals('pending', $request->status);
+        $this->assertEquals('in_review', $request->status);
     }
 
     /**
@@ -308,12 +308,14 @@ class WorkflowTest extends TestCase
         $managerA = User::where('email', 'manager.a@workflow.com')->first();
         $managerTech = User::where('email', 'manager.tech@workflow.com')->first();
         $employeeTech = User::where('email', 'emp.tech1@workflow.com')->first();
+        $deptA = Department::where('is_department_a', true)->first();
 
         // Step 1: User creates and submits request
         $createResponse = $this->actingAs($user, 'sanctum')
             ->postJson('/api/requests', [
                 'title' => 'End-to-End Test Request',
-                'description' => 'Testing complete workflow'
+                'description' => 'Testing complete workflow with enough detail',
+                'department' => (string) $deptA->id,
             ]);
 
         $requestId = $createResponse->json('request.id');
@@ -322,7 +324,7 @@ class WorkflowTest extends TestCase
             ->postJson("/api/requests/{$requestId}/submit");
 
         $request = Request::find($requestId);
-        $this->assertEquals('pending', $request->status);
+        $this->assertEquals('first_screening', $request->status);
 
         // Step 2: Dept A assigns to Tech path
         $workflowPath = WorkflowPath::where('code', 'PATH_1')->first();
@@ -333,7 +335,7 @@ class WorkflowTest extends TestCase
             ]);
 
         $request->refresh();
-        $this->assertEquals('in_review', $request->status);
+        $this->assertEquals('final_review', $request->status);
         $this->assertEquals($workflowPath->id, $request->workflow_path_id);
 
         // Step 3: Tech manager assigns to employee
@@ -345,16 +347,18 @@ class WorkflowTest extends TestCase
         $request->refresh();
         $this->assertEquals($employeeTech->id, $request->current_user_id);
 
-        // Step 4: Employee returns to Dept A
-        $this->actingAs($employeeTech, 'sanctum')
+        // Step 4: Manager returns to Dept A for validation
+        // First unassign the employee so manager can return
+        $request->update(['current_user_id' => null]);
+
+        $this->actingAs($managerTech, 'sanctum')
             ->postJson("/api/department/requests/{$requestId}/return-to-dept-a", [
                 'comments' => 'Work completed'
             ]);
 
         $request->refresh();
-        $deptA = Department::where('is_department_a', true)->first();
         $this->assertEquals($deptA->id, $request->current_department_id);
-        $this->assertEquals('pending', $request->status);
+        $this->assertEquals('in_review', $request->status);
     }
 
     /**
