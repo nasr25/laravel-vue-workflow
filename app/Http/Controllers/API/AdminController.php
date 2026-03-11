@@ -1122,6 +1122,7 @@ class AdminController extends Controller
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:50|unique:workflow_paths,code',
             'description' => 'nullable|string',
+            'department_id' => 'required|exists:departments,id',
             'order' => 'nullable|integer',
             'is_active' => 'boolean',
         ]);
@@ -1157,6 +1158,7 @@ class AdminController extends Controller
             'name' => 'sometimes|required|string|max:255',
             'code' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('workflow_paths')->ignore($path->id)],
             'description' => 'nullable|string',
+            'department_id' => 'sometimes|required|exists:departments,id',
             'order' => 'nullable|integer',
             'is_active' => 'boolean',
         ]);
