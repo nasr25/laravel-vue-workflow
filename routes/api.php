@@ -144,6 +144,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/admin/workflow-paths/{id}', [AdminController::class, 'updateWorkflowPath']);
     Route::delete('/admin/workflow-paths/{id}', [AdminController::class, 'deleteWorkflowPath']);
 
+    // Workflow Path Steps Management (Admin)
+    Route::get('/admin/workflow-paths/{id}/steps', [AdminController::class, 'getWorkflowPathSteps']);
+    Route::post('/admin/workflow-paths/{id}/steps', [AdminController::class, 'addWorkflowPathStep']);
+    Route::put('/admin/workflow-paths/{id}/steps/{stepId}', [AdminController::class, 'updateWorkflowPathStep']);
+    Route::delete('/admin/workflow-paths/{id}/steps/{stepId}', [AdminController::class, 'deleteWorkflowPathStep']);
+
     // Permission Management (Admin/Super Admin only)
     Route::prefix('permissions')->group(function () {
         // Roles Management

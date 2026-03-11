@@ -1207,4 +1207,81 @@ class AdminController extends Controller
             'message' => 'Workflow path deleted successfully'
         ]);
     }
+
+    /**
+     * Get steps for a workflow path
+     */
+    public function getWorkflowPathSteps($id, Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $path = \App\Models\WorkflowPath::findOrFail($id);
+        $steps = $path->steps()->with('department')->orderBy('step_order')->get();
+
+        return response()->json(['steps' => $steps]);
+    }
+
+    /**
+     * Add a step to a workflow path
+     */
+    public function addWorkflowPathStep($id, Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $path = \App\Models\WorkflowPath::findOrFail($id);
+
+        $validated = $request->validate([
+            'department_id' => 'required|exists:departments,id',
+            'step_order' => 'required|integer|min:1',
+            'requires_approval' => 'boolean',
+        ]);
+
+        $step = \App\Models\WorkflowPathStep::create([
+            'workflow_path_id' => $path->id,
+            'department_id' => $validated['department_id'],
+            'step_order' => $validated['step_order'],
+            'requires_approval' => $validated['requires_approval'] ?? true,
+        ]);
+
+        return response()->json([
+            'message' => 'Step added successfully',
+            'step' => $step->load('department'),
+        ], 201);
+    }
+
+    /**
+     * Update a workflow path step
+     */
+    public function updateWorkflowPathStep($id, $stepId, Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $step = \App\Models\WorkflowPathStep::where('workflow_path_id', $id)->findOrFail($stepId);
+
+        $validated = $request->validate([
+            'department_id' => 'sometimes|required|exists:departments,id',
+            'step_order' => 'sometimes|required|integer|min:1',
+            'requires_approval' => 'boolean',
+        ]);
+
+        $step->update($validated);
+
+        return response()->json([
+            'message' => 'Step updated successfully',
+            'step' => $step->load('department'),
+        ]);
+    }
+
+    /**
+     * Delete a workflow path step
+     */
+    public function deleteWorkflowPathStep($id, $stepId, Request $request)
+    {
+        if ($error = $this->checkAdmin($request)) return $error;
+
+        $step = \App\Models\WorkflowPathStep::where('workflow_path_id', $id)->findOrFail($stepId);
+        $step->delete();
+
+        return response()->json(['message' => 'Step deleted successfully']);
+    }
 }
